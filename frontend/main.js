@@ -28,36 +28,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// 窗口大小改变时重新适配 Canvas
-window.addEventListener('resize', function() {
-    if (tableApp && tableApp.renderer) {
-        setTimeout(() => {
-            tableApp.renderer.setupHighDPI();
-            tableApp.renderer.render();
-        }, 100);
-    }
-});
+// 窗口大小改变现在由InputManager处理
 
-// 全局键盘快捷键
-document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + S: 保存数据（这里只是示例）
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (tableApp) {
-            const data = tableApp.exportData();
-            console.log('导出的数据:', data);
-            tableApp.updateStatusBar('数据已导出到控制台');
-        }
-    }
-    
-    // Ctrl/Cmd + Z: 撤销（待实现）
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        if (tableApp) {
-            tableApp.updateStatusBar('撤销功能待实现');
-        }
-    }
-});
+// 全局快捷键将通过InputManager注册
 
 // 开发工具函数（在浏览器控制台中可以使用）
 window.tableDebug = {
@@ -72,5 +45,12 @@ window.tableDebug = {
     },
     getCellValue: (row, col) => {
         return tableApp ? tableApp.dataStructures.getCellValue(row, col) : null;
-    }
+    },
+    
+    // 持久化相关调试函数
+    save: (name) => tableApp ? tableApp.saveToPersistence(name) : null,
+    load: (name) => tableApp ? tableApp.loadFromPersistence(name) : null,
+    listTables: () => tableApp ? tableApp.listTables() : null,
+    getStorageInfo: () => tableApp ? tableApp.getStorageInfo() : null,
+    deleteTable: (name) => tableApp ? tableApp.deleteTable(name) : null
 };

@@ -48,24 +48,8 @@ class CanvasTableRenderer {
     }
     
     bindEvents() {
-        this.canvas.addEventListener('click', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            this.handleClick(x, y);
-        });
-        
-        this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            this.handleMouseMove(x, y);
-        });
-        
-        window.addEventListener('resize', () => {
-            this.setupHighDPI();
-            this.render();
-        });
+        // 事件处理现在由InputManager统一管理
+        // 保留这些方法以便InputManager调用，但不再直接绑定事件监听器
     }
     
     handleClick(x, y) {
@@ -86,20 +70,41 @@ class CanvasTableRenderer {
         }
     }
     
+    handleWheel(e) {
+        const scrollSpeed = 30;
+        
+        // 垂直滚动
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            this.scrollY += e.deltaY > 0 ? scrollSpeed : -scrollSpeed;
+        } else {
+            // 水平滚动
+            this.scrollX += e.deltaX > 0 ? scrollSpeed : -scrollSpeed;
+        }
+        
+        // 限制滚动边界
+        this.scrollX = Math.max(0, Math.min(this.scrollX, 
+            Math.max(0, this.data.cols * this.config.cellWidth - this.actualWidth)));
+        this.scrollY = Math.max(0, Math.min(this.scrollY, 
+            Math.max(0, this.data.currentRowCount * this.config.cellHeight - this.actualHeight + this.config.headerHeight)));
+        
+        this.render();
+    }
+    
     getCellFromPosition(x, y) {
         // 考虑滚动偏移
         const adjustedX = x + this.scrollX;
         const adjustedY = y + this.scrollY;
         
         // 检查是否在标题区域
-        if (adjustedY < this.config.headerHeight) {
+        if (y < this.config.headerHeight - this.scrollY) {
             return { row: -1, col: -1 };
         }
         
         const row = Math.floor((adjustedY - this.config.headerHeight) / this.config.cellHeight);
         const col = Math.floor(adjustedX / this.config.cellWidth);
         
-        if (row >= this.data.rows || col >= this.data.cols) {
+        // 边界检查
+        if (row < 0 || col < 0 || row >= this.data.currentRowCount || col >= this.data.cols) {
             return { row: -1, col: -1 };
         }
         
@@ -131,7 +136,7 @@ class CanvasTableRenderer {
         
         const startRow = Math.max(0, 
             Math.floor((this.scrollY - this.config.headerHeight) / this.config.cellHeight));
-        const endRow = Math.min(this.data.rows - 1, 
+        const endRow = Math.min(this.data.currentRowCount - 1, 
             Math.ceil((this.scrollY + this.actualHeight - this.config.headerHeight) / this.config.cellHeight));
         
         return { startRow, endRow, startCol, endCol };
@@ -212,12 +217,48 @@ class CanvasTableRenderer {
             this.ctx.lineWidth = 2;
             this.ctx.strokeRect(x, y, this.config.cellWidth, this.config.cellHeight);
             
-            // 重新渲染单元格文本
-            const cellValue = this.data.getCellValue(this.selectedCell.row, this.selectedCell.col);
-            if (cellValue) {
-                this.ctx.fillStyle = this.config.cellTextColor;
-                this.ctx.fillText(cellValue, x + 8, y + this.config.cellHeight / 2);
+            // 检查是否处于编辑状态
+            const editingState = this.cellEditor ? this.cellEditor.getEditingState() : null;
+            
+            if (editingState && 
+                editingState.cell.row === this.selectedCell.row && 
+                editingState.cell.col === this.selectedCell.col) {
+                // 编辑模式：渲染编辑中的文本和光标
+                this.renderEditingText(x, y, editingState);
+            } else {
+                // 非编辑模式：渲染原始单元格文本
+                const cellValue = this.data.getCellValue(this.selectedCell.row, this.selectedCell.col);
+                if (cellValue) {
+                    this.ctx.fillStyle = this.config.cellTextColor;
+                    this.ctx.fillText(cellValue, x + 8, y + this.config.cellHeight / 2);
+                }
             }
+        }
+    }
+    
+    // 渲染编辑状态的文本和光标
+    renderEditingText(cellX, cellY, editingState) {
+        const textX = cellX + 8;
+        const textY = cellY + this.config.cellHeight / 2;
+        
+        // 渲染编辑中的文本
+        this.ctx.fillStyle = this.config.cellTextColor;
+        this.ctx.fillText(editingState.text, textX, textY);
+        
+        // 渲染光标
+        if (editingState.cursorVisible) {
+            // 计算光标位置
+            const textBeforeCursor = editingState.text.substring(0, editingState.cursorPosition);
+            const textWidth = this.ctx.measureText(textBeforeCursor).width;
+            const cursorX = textX + textWidth;
+            
+            // 绘制光标
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(cursorX, cellY + 4);
+            this.ctx.lineTo(cursorX, cellY + this.config.cellHeight - 4);
+            this.ctx.stroke();
         }
     }
     

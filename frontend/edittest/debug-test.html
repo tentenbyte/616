@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试版编辑测试</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        canvas { 
+            border: 2px solid #ddd; 
+            display: block; 
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .controls button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #005a9e;
+        }
+        .info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .highlight {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 调试版编辑测试</h1>
+        
+        <div class="highlight">
+            <strong>⚠️ 重要提示：</strong><br>
+            1. 打开浏览器开发者工具查看详细日志<br>
+            2. 只有最后一行（第2行）的单元格可以编辑<br>
+            3. 双击任意单元格查看编辑限制检查过程
+        </div>
+        
+        <div class="controls">
+            <button onclick="testEditLastRow()">✏️ 测试编辑最后一行</button>
+            <button onclick="testEditFirstRow()">🚫 测试编辑第一行（应该失败）</button>
+            <button onclick="showDataInfo()">📊 显示数据信息</button>
+            <button onclick="console.clear()">🧹 清空控制台</button>
+        </div>
+        
+        <canvas id="debugCanvas" width="500" height="200"></canvas>
+        
+        <div class="info">
+            <h3>📋 测试数据</h3>
+            <p>表格包含3行3列数据：</p>
+            <ul>
+                <li>第0行: A1, B1, C1 （<strong>不可编辑</strong>）</li>
+                <li>第1行: A2, B2, C2 （<strong>不可编辑</strong>）</li>
+                <li>第2行: A3, B3, C3 （<strong>✅ 可编辑</strong>）</li>
+            </ul>
+        </div>
+        
+        <div id="status" class="info">
+            <strong>状态：</strong> 等待操作...
+        </div>
+    </div>
+
+    <!-- 加载调试版的CellEditor -->
+    <script src="debug-cellEditor.js"></script>
+    
+    <script>
+        console.log('🚀 Debug test starting...');
+        
+        // 极简数据结构
+        class TestData {
+            constructor() {
+                this.currentRowCount = 3;
+                this.cols = 3;
+                this.data = [
+                    ['A1', 'B1', 'C1'],
+                    ['A2', 'B2', 'C2'],
+                    ['A3', 'B3', 'C3']
+                ];
+                console.log('📦 TestData created:', this);
+            }
+            
+            getCellValue(row, col) {
+                const value = this.data[row] && this.data[row][col] ? this.data[row][col] : '';
+                console.log(`📖 getCellValue(${row}, ${col}) = "${value}"`);
+                return value;
+            }
+            
+            setCellValue(row, col, value) {
+                console.log(`💾 setCellValue(${row}, ${col}, "${value}")`);
+                // 时间序列限制：只能编辑最后一行
+                if (row !== this.currentRowCount - 1) {
+                    const error = `Can only edit the last row (${this.currentRowCount - 1}), attempted to edit row ${row}`;
+                    console.error('❌', error);
+                    throw new Error(error);
+                }
+                if (!this.data[row]) this.data[row] = [];
+                this.data[row][col] = value;
+                console.log('✅ Value saved successfully');
+            }
+        }
+        
+        // 极简渲染器
+        class TestRenderer {
+            constructor(canvas, data) {
+                console.log('🎨 TestRenderer creating...');
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.data = data;
+                this.config = {
+                    cellWidth: 80,
+                    cellHeight: 30,
+                    headerHeight: 35
+                };
+                this.scrollX = 0;
+                this.scrollY = 0;
+                this.render();
+                console.log('✅ TestRenderer created');
+            }
+            
+            render() {
+                console.log('🖼️ Rendering...');
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+                this.ctx.strokeStyle = '#ddd';
+                this.ctx.fillStyle = '#333';
+                
+                // 绘制表格
+                for (let row = 0; row < this.data.currentRowCount; row++) {
+                    for (let col = 0; col < this.data.cols; col++) {
+                        const x = col * this.config.cellWidth;
+                        const y = this.config.headerHeight + row * this.config.cellHeight;
+                        
+                        // 绘制边框
+                        this.ctx.strokeRect(x, y, this.config.cellWidth, this.config.cellHeight);
+                        
+                        // 高亮最后一行（可编辑行）
+                        if (row === this.data.currentRowCount - 1) {
+                            this.ctx.fillStyle = '#e6f3ff';
+                            this.ctx.fillRect(x + 1, y + 1, this.config.cellWidth - 2, this.config.cellHeight - 2);
+                            this.ctx.fillStyle = '#333';
+                        }
+                        
+                        // 绘制文本
+                        const value = this.data.getCellValue(row, col);
+                        this.ctx.fillText(value, x + 8, y + 20);
+                    }
+                }
+                
+                // 绘制标题
+                this.ctx.fillStyle = '#666';
+                this.ctx.fillText('双击蓝色区域的单元格进行编辑', 10, 20);
+                this.ctx.fillStyle = '#333';
+            }
+            
+            getCellFromPosition(x, y) {
+                const row = Math.floor((y - this.config.headerHeight) / this.config.cellHeight);
+                const col = Math.floor(x / this.config.cellWidth);
+                
+                console.log(`🎯 getCellFromPosition(${x.toFixed(1)}, ${y.toFixed(1)}) = (${row}, ${col})`);
+                
+                if (row >= 0 && row < this.data.currentRowCount && col >= 0 && col < this.data.cols) {
+                    return { row, col };
+                }
+                return { row: -1, col: -1 };
+            }
+        }
+        
+        // 初始化
+        const canvas = document.getElementById('debugCanvas');
+        const data = new TestData();
+        const renderer = new TestRenderer(canvas, data);
+        
+        console.log('🔧 Creating CellEditor...');
+        const editor = new CellEditor(canvas.parentElement, renderer, data);
+        
+        // 设置回调
+        editor.onEditStart = (row, col, value) => {
+            console.log(`🎯 Edit started: (${row}, ${col}) = "${value}"`);
+            updateStatus(`✏️ 开始编辑单元格 (${row}, ${col})，值: "${value}"`);
+        };
+        
+        editor.onEditComplete = (row, col, newValue) => {
+            console.log(`✅ Edit completed: (${row}, ${col}) = "${newValue}"`);
+            renderer.render();
+            updateStatus(`✅ 编辑完成！单元格 (${row}, ${col}) 新值: "${newValue}"`);
+        };
+        
+        editor.onEditCancel = (row, col) => {
+            console.log(`❌ Edit canceled: (${row}, ${col})`);
+            updateStatus(`❌ 取消编辑单元格 (${row}, ${col})`);
+        };
+        
+        // 双击事件
+        canvas.addEventListener('dblclick', (e) => {
+            console.log('=== 🖱️ DOUBLE CLICK EVENT ===');
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const cell = renderer.getCellFromPosition(x, y);
+            
+            if (cell.row >= 0 && cell.col >= 0) {
+                console.log(`🎯 Attempting to edit cell (${cell.row}, ${cell.col})`);
+                updateStatus(`🖱️ 双击单元格 (${cell.row}, ${cell.col})`);
+                
+                const success = editor.startEdit(cell.row, cell.col);
+                console.log(`Edit start result: ${success}`);
+            } else {
+                console.log('❌ Click outside valid cell area');
+                updateStatus('❌ 点击位置不在有效单元格内');
+            }
+            console.log('=== END DOUBLE CLICK EVENT ===');
+        });
+        
+        // 测试函数
+        function testEditLastRow() {
+            console.log('=== 🧪 TEST EDIT LAST ROW ===');
+            const lastRow = data.currentRowCount - 1;
+            updateStatus(`🧪 测试编辑最后一行 (${lastRow}, 0)`);
+            const success = editor.startEdit(lastRow, 0);
+            console.log(`Test result: ${success}`);
+        }
+        
+        function testEditFirstRow() {
+            console.log('=== 🧪 TEST EDIT FIRST ROW (SHOULD FAIL) ===');
+            updateStatus('🧪 测试编辑第一行（应该失败）');
+            const success = editor.startEdit(0, 0);
+            console.log(`Test result: ${success} (should be false)`);
+        }
+        
+        function showDataInfo() {
+            console.log('=== 📊 DATA INFO ===');
+            console.log('Current row count:', data.currentRowCount);
+            console.log('Last editable row:', data.currentRowCount - 1);
+            console.log('Data:', data.data);
+            console.log('Editor state:', {
+                isEditing: editor.isEditing,
+                editingCell: editor.editingCell
+            });
+            
+            updateStatus(`📊 数据信息：总行数 ${data.currentRowCount}，可编辑行 ${data.currentRowCount - 1}`);
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = `<strong>状态：</strong> ${message}`;
+        }
+        
+        // 全局调试对象
+        window.debugTest = {
+            data, renderer, editor,
+            testEditLastRow, testEditFirstRow, showDataInfo
+        };
+        
+        console.log('✅ Debug test initialization complete');
+        console.log('🎯 Try double-clicking on the blue cells (last row) to test editing');
+        updateStatus('✅ 初始化完成，请双击蓝色单元格测试编辑功能');
+    </script>
+</body>
+</html>

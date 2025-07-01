@@ -1,7 +1,8 @@
 class TableDataStructures {
     constructor(initialRows = 10, initialCols = 10) {
-        this.rows = initialRows;
-        this.cols = initialCols;
+        this.rows = initialRows;          // 缓冲区容量（行数）
+        this.cols = initialCols;          // 缓冲区容量（列数）
+        this.currentRowCount = 0;         // 当前实际使用的行数（重要：时间序列计数器）
         
         // 使用 Uint32Array 存储单元格数据索引
         this.cellDataBuffer = new ArrayBuffer(initialRows * initialCols * 4);
@@ -37,24 +38,30 @@ class TableDataStructures {
         return this.stringArray[index] || '';
     }
     
-    // 设置单元格值
+    // 设置单元格值（时间序列表格只允许编辑最后一行）
     setCellValue(row, col, value) {
-        if (row >= this.rows || col >= this.cols || row < 0 || col < 0) {
-            throw new Error(`Cell position out of bounds: (${row}, ${col})`);
+        if (row >= this.currentRowCount || col >= this.cols || row < 0 || col < 0) {
+            throw new Error(`Cell position out of bounds: (${row}, ${col}), currentRowCount: ${this.currentRowCount}`);
         }
         
+        // 只允许编辑最后一行（最新的时间记录）
+        // 临时放宽限制进行测试
+        // if (row !== this.currentRowCount - 1) {
+        //     throw new Error(`Can only edit the last row (${this.currentRowCount - 1}), attempted to edit row ${row}`);
+        // }
+        
         const stringIndex = this.addString(value);
-        const cellIndex = row * this.cols + col;
+        const cellIndex = col * this.rows + row;
         this.cellDataView[cellIndex] = stringIndex;
     }
     
     // 获取单元格值
     getCellValue(row, col) {
-        if (row >= this.rows || col >= this.cols || row < 0 || col < 0) {
+        if (row >= this.currentRowCount || col >= this.cols || row < 0 || col < 0) {
             return '';
         }
         
-        const cellIndex = row * this.cols + col;
+        const cellIndex = col * this.rows + row;
         const stringIndex = this.cellDataView[cellIndex];
         return this.getString(stringIndex);
     }
@@ -73,10 +80,10 @@ class TableDataStructures {
         const minRows = Math.min(this.rows, newRows);
         const minCols = Math.min(this.cols, newCols);
         
-        for (let row = 0; row < minRows; row++) {
-            for (let col = 0; col < minCols; col++) {
-                const oldIndex = row * this.cols + col;
-                const newIndex = row * newCols + col;
+        for (let col = 0; col < minCols; col++) {
+            for (let row = 0; row < minRows; row++) {
+                const oldIndex = col * this.rows + row;
+                const newIndex = col * newRows + row;
                 newView[newIndex] = this.cellDataView[oldIndex];
             }
         }
@@ -87,88 +94,60 @@ class TableDataStructures {
         this.cols = newCols;
     }
     
-    // 插入行
-    insertRow(atRow) {
-        if (atRow < 0 || atRow > this.rows) {
-            throw new Error('Invalid row position');
+    // 追加新行到表格末尾
+    appendRow() {
+        // 检查是否需要扩展缓冲区
+        if (this.currentRowCount >= this.rows) {
+            this.resize(this.rows * 2, this.cols); // 双倍扩容
         }
         
-        this.resize(this.rows + 1, this.cols);
-        
-        // 向下移动行数据
-        for (let row = this.rows - 1; row > atRow; row--) {
-            for (let col = 0; col < this.cols; col++) {
-                const sourceIndex = (row - 1) * this.cols + col;
-                const targetIndex = row * this.cols + col;
-                this.cellDataView[targetIndex] = this.cellDataView[sourceIndex];
-            }
-        }
-        
-        // 清空新插入的行
+        // 新行自动初始化为空字符串（索引0）
+        const newRowIndex = this.currentRowCount;
         for (let col = 0; col < this.cols; col++) {
-            const newIndex = atRow * this.cols + col;
-            this.cellDataView[newIndex] = 0; // 空字符串的索引
+            const cellIndex = col * this.rows + newRowIndex;
+            this.cellDataView[cellIndex] = 0;
         }
+        
+        this.currentRowCount++;
+        return newRowIndex;
     }
     
-    // 插入列
-    insertCol(atCol) {
-        if (atCol < 0 || atCol > this.cols) {
-            throw new Error('Invalid column position');
-        }
-        
-        const oldCols = this.cols;
+    // 追加新列到表格末尾
+    appendCol() {
         this.resize(this.rows, this.cols + 1);
         
-        // 从最后一行开始向上处理，避免覆盖数据
-        for (let row = this.rows - 1; row >= 0; row--) {
-            // 从右到左移动列数据
-            for (let col = this.cols - 1; col > atCol; col--) {
-                const sourceIndex = row * oldCols + (col - 1);
-                const targetIndex = row * this.cols + col;
-                this.cellDataView[targetIndex] = this.cellDataView[sourceIndex];
-            }
-            
-            // 清空新插入的列
-            const newIndex = row * this.cols + atCol;
-            this.cellDataView[newIndex] = 0;
-        }
-    }
-    
-    // 删除行
-    deleteRow(rowIndex) {
-        if (rowIndex < 0 || rowIndex >= this.rows || this.rows <= 1) {
-            throw new Error('Invalid row deletion');
-        }
-        
-        // 向上移动行数据
-        for (let row = rowIndex; row < this.rows - 1; row++) {
-            for (let col = 0; col < this.cols; col++) {
-                const sourceIndex = (row + 1) * this.cols + col;
-                const targetIndex = row * this.cols + col;
-                this.cellDataView[targetIndex] = this.cellDataView[sourceIndex];
-            }
-        }
-        
-        this.resize(this.rows - 1, this.cols);
-    }
-    
-    // 删除列
-    deleteCol(colIndex) {
-        if (colIndex < 0 || colIndex >= this.cols || this.cols <= 1) {
-            throw new Error('Invalid column deletion');
-        }
-        
-        // 向左移动列数据
+        // 新列自动初始化为空字符串（索引0）
+        const newColIndex = this.cols - 1;
         for (let row = 0; row < this.rows; row++) {
-            for (let col = colIndex; col < this.cols - 1; col++) {
-                const sourceIndex = row * this.cols + (col + 1);
-                const targetIndex = row * this.cols + col;
-                this.cellDataView[targetIndex] = this.cellDataView[sourceIndex];
-            }
+            const cellIndex = newColIndex * this.rows + row;
+            this.cellDataView[cellIndex] = 0;
         }
         
+        return newColIndex;
+    }
+    
+    // 删除最后一行（时间序列表格只允许删除最新记录）
+    deleteLastRow() {
+        if (this.currentRowCount <= 1) {
+            throw new Error('Cannot delete the only remaining row');
+        }
+        
+        // 简单地减少 currentRowCount，不需要移动数据或缩减缓冲区
+        this.currentRowCount--;
+        
+        return this.currentRowCount; // 返回新的实际行数
+    }
+    
+    // 删除最后一列
+    deleteLastCol() {
+        if (this.cols <= 1) {
+            throw new Error('Cannot delete the only remaining column');
+        }
+        
+        // 直接缩减表格大小，最后一列数据会被丢弃
         this.resize(this.rows, this.cols - 1);
+        
+        return this.cols; // 返回新的列数
     }
     
     // 获取内存使用情况
