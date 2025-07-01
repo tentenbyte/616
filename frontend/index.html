@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas 表格应用</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <button id="addRowBtn">添加行</button>
+            <button id="addColBtn">添加列</button>
+            <button id="deleteRowBtn">删除行</button>
+            <button id="deleteColBtn">删除列</button>
+        </div>
+        <div class="canvas-container">
+            <canvas id="tableCanvas" width="800" height="600"></canvas>
+        </div>
+        <div class="status-bar">
+            <span id="statusText">就绪</span>
+        </div>
+    </div>
+
+    <script src="dataStructures.js"></script>
+    <script src="canvasRenderer.js"></script>
+    <script src="tableApp.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
