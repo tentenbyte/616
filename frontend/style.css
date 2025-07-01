@@ -15,31 +15,6 @@ body {
     height: 100vh;
 }
 
-.toolbar {
-    background-color: #fff;
-    border-bottom: 1px solid #ddd;
-    padding: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.toolbar button {
-    margin-right: 10px;
-    padding: 8px 16px;
-    border: 1px solid #ddd;
-    background-color: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.toolbar button:hover {
-    background-color: #e6f3ff;
-    border-color: #007acc;
-}
-
-.toolbar button:active {
-    background-color: #cce7ff;
-}
 
 .canvas-container {
     flex: 1;

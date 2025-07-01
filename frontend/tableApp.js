@@ -47,32 +47,8 @@ class TableApp {
             this.handleKeyDown(e);
         });
         
-        // 工具栏按钮
-        this.bindToolbarEvents();
     }
     
-    bindToolbarEvents() {
-        const addRowBtn = document.getElementById('addRowBtn');
-        const addColBtn = document.getElementById('addColBtn');
-        const deleteRowBtn = document.getElementById('deleteRowBtn');
-        const deleteColBtn = document.getElementById('deleteColBtn');
-        
-        if (addRowBtn) {
-            addRowBtn.addEventListener('click', () => this.addRow());
-        }
-        
-        if (addColBtn) {
-            addColBtn.addEventListener('click', () => this.addColumn());
-        }
-        
-        if (deleteRowBtn) {
-            deleteRowBtn.addEventListener('click', () => this.deleteRow());
-        }
-        
-        if (deleteColBtn) {
-            deleteColBtn.addEventListener('click', () => this.deleteColumn());
-        }
-    }
     
     loadSampleData() {
         // 加载一些示例数据
