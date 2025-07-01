@@ -64,7 +64,7 @@ class TableApp {
         
         // 编辑完成
         this.cellEditor.onEditComplete = (row, col, newValue) => {
-            this.renderer.render();
+            this.renderer.renderSingleCell(row, col);
             this.updateStatusBar(`更新单元格 (${row + 1}, ${this.getColumnName(col)}): ${newValue}`);
             
             // 更新InputManager状态
@@ -395,13 +395,13 @@ class TableApp {
             case 'Delete':
                 // Excel风格：Delete清空单元格
                 this.dataStructures.setCellValue(selected.row, selected.col, '');
-                this.renderer.render();
+                this.renderer.renderSingleCell(selected.row, selected.col);
                 e.preventDefault();
                 break;
             case 'Backspace':
                 // Excel风格：Backspace清空单元格并进入编辑模式
                 this.dataStructures.setCellValue(selected.row, selected.col, '');
-                this.renderer.render();
+                // renderSingleCell会在startEdit中被调用，这里不需要额外渲染
                 const backspaceSuccess = this.cellEditor.startEdit(selected.row, selected.col, '', 'append');
                 if (backspaceSuccess) {
                     this.inputManager.updateState({ isEditing: true, mode: 'editing' });

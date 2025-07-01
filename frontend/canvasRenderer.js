@@ -262,6 +262,62 @@ class CanvasTableRenderer {
         }
     }
     
+    // 仅重绘单个单元格（性能优化）
+    renderSingleCell(row, col) {
+        if (row < 0 || col < 0 || row >= this.data.currentRowCount || col >= this.data.cols) {
+            return;
+        }
+        
+        const x = col * this.config.cellWidth - this.scrollX;
+        const y = this.config.headerHeight + row * this.config.cellHeight - this.scrollY;
+        
+        // 清除单元格区域
+        this.ctx.clearRect(x, y, this.config.cellWidth, this.config.cellHeight);
+        
+        // 重绘网格线
+        this.ctx.strokeStyle = this.config.gridColor;
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, this.config.cellWidth, this.config.cellHeight);
+        
+        // 检查是否是选中的单元格
+        if (this.selectedCell.row === row && this.selectedCell.col === col) {
+            // 选中背景
+            this.ctx.fillStyle = this.config.selectedCellBgColor;
+            this.ctx.fillRect(x, y, this.config.cellWidth, this.config.cellHeight);
+            
+            // 选中边框
+            this.ctx.strokeStyle = this.config.selectedCellBorderColor;
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(x, y, this.config.cellWidth, this.config.cellHeight);
+            
+            // 检查是否处于编辑状态
+            const editingState = this.cellEditor ? this.cellEditor.getEditingState() : null;
+            
+            if (editingState && 
+                editingState.cell.row === row && 
+                editingState.cell.col === col) {
+                // 编辑模式：渲染编辑中的文本和光标
+                this.renderEditingText(x, y, editingState);
+            } else {
+                // 非编辑模式：渲染原始单元格文本
+                const cellValue = this.data.getCellValue(row, col);
+                if (cellValue) {
+                    this.ctx.fillStyle = this.config.cellTextColor;
+                    this.ctx.font = this.config.font;
+                    this.ctx.fillText(cellValue, x + 8, y + this.config.cellHeight / 2);
+                }
+            }
+        } else {
+            // 普通单元格
+            const cellValue = this.data.getCellValue(row, col);
+            if (cellValue) {
+                this.ctx.fillStyle = this.config.cellTextColor;
+                this.ctx.font = this.config.font;
+                this.ctx.fillText(cellValue, x + 8, y + this.config.cellHeight / 2);
+            }
+        }
+    }
+    
     getColumnHeader(col) {
         let header = '';
         let num = col;
@@ -273,8 +329,26 @@ class CanvasTableRenderer {
     }
     
     setSelectedCell(row, col) {
+        const oldRow = this.selectedCell.row;
+        const oldCol = this.selectedCell.col;
+        
+        // 如果选择了相同的单元格，不需要重绘
+        if (oldRow === row && oldCol === col) {
+            return;
+        }
+        
         this.selectedCell = { row, col };
-        this.render();
+        
+        // 优化：只重绘受影响的单元格
+        // 重绘之前选中的单元格（如果有效）
+        if (oldRow >= 0 && oldCol >= 0) {
+            this.renderSingleCell(oldRow, oldCol);
+        }
+        
+        // 重绘新选中的单元格（如果有效）
+        if (row >= 0 && col >= 0) {
+            this.renderSingleCell(row, col);
+        }
     }
     
     scrollTo(x, y) {

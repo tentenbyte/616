@@ -39,7 +39,10 @@ class CellEditor {
         this.cursorVisible = true;
         this.cursorTimer = setInterval(() => {
             this.cursorVisible = !this.cursorVisible;
-            this.renderer.render(); // 重新渲染以显示/隐藏光标
+            // 性能优化：只重绘当前编辑的单元格
+            if (this.editingCell) {
+                this.renderer.renderSingleCell(this.editingCell.row, this.editingCell.col);
+            }
         }, this.config.cursorBlinkInterval);
     }
     
@@ -80,9 +83,9 @@ class CellEditor {
         // 设置光标位置和焦点
         this.setupCursorAndFocus(editType, clickPosition, currentValue);
         
-        // 启动光标闪烁和重新渲染
+        // 启动光标闪烁和重新渲染（仅重绘当前单元格）
         this.startCursorBlink();
-        this.renderer.render();
+        this.renderer.renderSingleCell(row, col);
         
         // 触发回调
         if (this.onEditStart) {
