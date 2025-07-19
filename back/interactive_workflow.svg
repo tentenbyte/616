@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 渐变定义 -->
+    <linearGradient id="inputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4299e1"/>
+      <stop offset="100%" style="stop-color:#3182ce"/>
+    </linearGradient>
+    
+    <linearGradient id="inputHover" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#63b3ed"/>
+      <stop offset="100%" style="stop-color:#4299e1"/>
+    </linearGradient>
+    
+    <linearGradient id="processGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f56565"/>
+      <stop offset="100%" style="stop-color:#e53e3e"/>
+    </linearGradient>
+    
+    <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ed8936"/>
+      <stop offset="100%" style="stop-color:#dd6b20"/>
+    </linearGradient>
+    
+    <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38b2ac"/>
+      <stop offset="100%" style="stop-color:#319795"/>
+    </linearGradient>
+    
+    <!-- 阴影效果 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#4299e1" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+  
+  <!-- 样式定义 -->
+  <style>
+    .interactive-box {
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .interactive-box:hover {
+      filter: url(#glow);
+      transform: scale(1.05);
+    }
+    
+    .detail-text {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .interactive-box:hover + .detail-text {
+      opacity: 1;
+    }
+    
+    .click-me {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .flow-line {
+      stroke-dasharray: 200;
+      stroke-dashoffset: 200;
+      animation: draw 3s ease-in-out forwards;
+    }
+    
+    @keyframes draw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+  </style>
+  
+  <!-- 背景 -->
+  <rect width="900" height="600" fill="#f7fafc"/>
+  
+  <!-- 标题 -->
+  <text x="450" y="40" text-anchor="middle" font-family="Arial" font-size="24" font-weight="bold" fill="#2d3748">
+    🎯 交互式 Claude Code 工作流程图
+  </text>
+  
+  <text x="450" y="65" text-anchor="middle" font-family="Arial" font-size="14" fill="#718096" class="click-me">
+    👆 鼠标悬停在各个模块上查看详细信息，点击可切换状态
+  </text>
+  
+  <!-- 用户输入模块 -->
+  <g id="input-module">
+    <rect id="input-box" class="interactive-box" x="50" y="120" width="160" height="80" rx="15" 
+          fill="url(#inputGradient)" filter="url(#shadow)"
+          onclick="toggleDetails('input-details')"/>
+    <text x="130" y="150" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">👤 用户输入</text>
+    <text x="130" y="170" text-anchor="middle" font-family="Arial" font-size="12" fill="#e2e8f0">点击查看详情</text>
+    
+    <!-- 详细信息 -->
+    <g id="input-details" class="hidden">
+      <rect x="50" y="210" width="160" height="100" rx="10" fill="#ffffff" stroke="#4299e1" stroke-width="2" opacity="0.95"/>
+      <text x="60" y="230" font-family="Arial" font-size="12" fill="#2d3748" font-weight="bold">💡 功能详情：</text>
+      <text x="60" y="250" font-family="Arial" font-size="11" fill="#4a5568">• 自然语言理解</text>
+      <text x="60" y="265" font-family="Arial" font-size="11" fill="#4a5568">• 多模态输入支持</text>
+      <text x="60" y="280" font-family="Arial" font-size="11" fill="#4a5568">• 上下文记忆</text>
+      <text x="60" y="295" font-family="Arial" font-size="11" fill="#4a5568">• 意图识别</text>
+    </g>
+  </g>
+  
+  <!-- Claude Code 核心 -->
+  <g id="claude-module">
+    <rect id="claude-box" class="interactive-box" x="300" y="120" width="200" height="100" rx="20" 
+          fill="url(#aiGradient)" filter="url(#shadow)"
+          onclick="toggleDetails('claude-details')"/>
+    <text x="400" y="155" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="white">🧠 Claude Code 核心</text>
+    <text x="400" y="175" text-anchor="middle" font-family="Arial" font-size="12" fill="#fef5e7">智能代码生成引擎</text>
+    <text x="400" y="195" text-anchor="middle" font-family="Arial" font-size="12" fill="#fef5e7">点击查看能力矩阵</text>
+    
+    <!-- Claude详细信息 -->
+    <g id="claude-details" class="hidden">
+      <rect x="280" y="240" width="240" height="140" rx="10" fill="#ffffff" stroke="#ed8936" stroke-width="2" opacity="0.95"/>
+      <text x="290" y="260" font-family="Arial" font-size="12" fill="#2d3748" font-weight="bold">🚀 核心能力：</text>
+      <text x="290" y="280" font-family="Arial" font-size="11" fill="#4a5568">• 多语言代码生成</text>
+      <text x="290" y="295" font-family="Arial" font-size="11" fill="#4a5568">• 系统架构设计</text>
+      <text x="290" y="310" font-family="Arial" font-size="11" fill="#4a5568">• 自动化工具编排</text>
+      <text x="290" y="325" font-family="Arial" font-size="11" fill="#4a5568">• 实时问题解决</text>
+      <text x="290" y="340" font-family="Arial" font-size="11" fill="#4a5568">• MCP 服务器协调</text>
+      <text x="290" y="355" font-family="Arial" font-size="11" fill="#4a5568">• 持续学习优化</text>
+    </g>
+  </g>
+  
+  <!-- MCP 服务器集群 -->
+  <g id="mcp-cluster">
+    <rect id="mcp1" class="interactive-box" x="580" y="80" width="120" height="60" rx="12" 
+          fill="#667eea" filter="url(#shadow)"
+          onclick="animateMCP('mcp1')"/>
+    <text x="640" y="105" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🔌 数据库 MCP</text>
+    <text x="640" y="120" text-anchor="middle" font-family="Arial" font-size="10" fill="#e2e8f0">点击激活</text>
+    
+    <rect id="mcp2" class="interactive-box" x="580" y="160" width="120" height="60" rx="12" 
+          fill="#f093fb" filter="url(#shadow)"
+          onclick="animateMCP('mcp2')"/>
+    <text x="640" y="185" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🌐 API MCP</text>
+    <text x="640" y="200" text-anchor="middle" font-family="Arial" font-size="10" fill="#e2e8f0">点击激活</text>
+    
+    <rect id="mcp3" class="interactive-box" x="580" y="240" width="120" height="60" rx="12" 
+          fill="#a8edea" filter="url(#shadow)"
+          onclick="animateMCP('mcp3')"/>
+    <text x="640" y="265" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🛠️ 工具 MCP</text>
+    <text x="640" y="280" text-anchor="middle" font-family="Arial" font-size="10" fill="#2d3748">点击激活</text>
+  </g>
+  
+  <!-- 输出结果 -->
+  <g id="output-module">
+    <rect id="output-box" class="interactive-box" x="100" y="350" width="160" height="80" rx="15" 
+          fill="url(#outputGradient)" filter="url(#shadow)"
+          onclick="showResult()"/>
+    <text x="180" y="380" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">⚡ 执行结果</text>
+    <text x="180" y="400" text-anchor="middle" font-family="Arial" font-size="12" fill="#c6f6d5">点击生成示例</text>
+    
+    <!-- 结果展示区 -->
+    <g id="result-display" class="hidden">
+      <rect x="300" y="350" width="300" height="120" rx="10" fill="#ffffff" stroke="#38b2ac" stroke-width="2" opacity="0.95"/>
+      <text x="310" y="370" font-family="Arial" font-size="12" fill="#2d3748" font-weight="bold">✨ 生成结果示例：</text>
+      <text x="310" y="390" font-family="monospace" font-size="10" fill="#4a5568">function generateReport() {</text>
+      <text x="310" y="405" font-family="monospace" font-size="10" fill="#4a5568">  const data = fetchData();</text>
+      <text x="310" y="420" font-family="monospace" font-size="10" fill="#4a5568">  return processData(data);</text>
+      <text x="310" y="435" font-family="monospace" font-size="10" fill="#4a5568">}</text>
+      <text x="310" y="455" font-family="Arial" font-size="11" fill="#38b2ac">📊 自动生成的完整代码解决方案</text>
+    </g>
+  </g>
+  
+  <!-- 交互式流程线 -->
+  <g id="flow-lines" stroke="#4a5568" stroke-width="3" fill="none">
+    <path id="line1" class="flow-line" d="M 210 160 L 300 160"/>
+    <path id="line2" class="flow-line" d="M 500 170 L 580 170"/>
+    <path id="line3" class="flow-line" d="M 400 220 L 400 280 L 180 280 L 180 350"/>
+  </g>
+  
+  <!-- 状态指示器 -->
+  <g id="status-indicator">
+    <circle id="status-dot" cx="800" cy="50" r="8" fill="#38b2ac">
+      <animate attributeName="fill" values="#38b2ac;#f56565;#38b2ac" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <text x="820" y="55" font-family="Arial" font-size="12" fill="#4a5568">系统运行中</text>
+  </g>
+  
+  <!-- 交互脚本 -->
+  <script>
+    <![CDATA[
+    function toggleDetails(elementId) {
+      const element = document.getElementById(elementId);
+      if (element.classList.contains('hidden')) {
+        element.classList.remove('hidden');
+      } else {
+        element.classList.add('hidden');
+      }
+    }
+    
+    function animateMCP(mcpId) {
+      const mcp = document.getElementById(mcpId);
+      mcp.style.transform = 'scale(1.2)';
+      mcp.style.filter = 'url(#glow)';
+      
+      setTimeout(() => {
+        mcp.style.transform = 'scale(1)';
+        mcp.style.filter = 'url(#shadow)';
+      }, 500);
+      
+      // 创建数据流动画
+      createDataFlow();
+    }
+    
+    function createDataFlow() {
+      const svg = document.querySelector('svg');
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '580');
+      circle.setAttribute('cy', '170');
+      circle.setAttribute('r', '3');
+      circle.setAttribute('fill', '#4299e1');
+      
+      const animateMotion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+      animateMotion.setAttribute('dur', '2s');
+      animateMotion.setAttribute('path', 'M 0,0 L -280,0 L -280,120 L -100,120');
+      animateMotion.setAttribute('fill', 'freeze');
+      
+      circle.appendChild(animateMotion);
+      svg.appendChild(circle);
+      
+      setTimeout(() => {
+        svg.removeChild(circle);
+      }, 2000);
+    }
+    
+    function showResult() {
+      const resultDisplay = document.getElementById('result-display');
+      resultDisplay.classList.remove('hidden');
+      
+      // 添加打字机效果
+      const codeLines = resultDisplay.querySelectorAll('text');
+      codeLines.forEach((line, index) => {
+        if (index > 0 && index < 5) {
+          line.style.opacity = '0';
+          setTimeout(() => {
+            line.style.opacity = '1';
+            line.style.transition = 'opacity 0.5s ease';
+          }, index * 300);
+        }
+      });
+    }
+    
+    // 添加全局点击事件
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('SVG 交互系统已激活！');
+    });
+    ]]>
+  </script>
+  
+  <!-- 使用说明 -->
+  <g transform="translate(50, 520)">
+    <text x="0" y="0" font-family="Arial" font-size="12" fill="#718096" font-weight="bold">🎮 交互说明：</text>
+    <text x="0" y="20" font-family="Arial" font-size="11" fill="#718096">• 悬停：查看模块详情  • 点击：激活特殊功能  • 观察：动画和状态变化</text>
+    <text x="0" y="40" font-family="Arial" font-size="11" fill="#4299e1">✨ 这是一个完全交互式的 SVG - 具备完整的用户交互能力！</text>
+  </g>
+</svg>

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="600" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:0.1"/>
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:0.1"/>
+    </linearGradient>
+    
+    <!-- 阴影效果 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    
+    <!-- 箭头标记 -->
+    <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <polygon points="0 0, 12 4, 0 8" fill="#4a5568"/>
+    </marker>
+    
+    <!-- 渐变色块 -->
+    <linearGradient id="inputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4299e1"/>
+      <stop offset="100%" style="stop-color:#3182ce"/>
+    </linearGradient>
+    
+    <linearGradient id="processGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f56565"/>
+      <stop offset="100%" style="stop-color:#e53e3e"/>
+    </linearGradient>
+    
+    <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ed8936"/>
+      <stop offset="100%" style="stop-color:#dd6b20"/>
+    </linearGradient>
+    
+    <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38b2ac"/>
+      <stop offset="100%" style="stop-color:#319795"/>
+    </linearGradient>
+    
+    <linearGradient id="feedbackGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9f7aea"/>
+      <stop offset="100%" style="stop-color:#805ad5"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="900" height="600" fill="url(#backgroundGradient)"/>
+  
+  <!-- 标题 -->
+  <text x="450" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="bold" fill="#2d3748">
+    🤖 Claude Code AI 工作流程图
+  </text>
+  
+  <!-- 副标题 -->
+  <text x="450" y="80" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#718096">
+    从输入到输出的智能化处理流程
+  </text>
+  
+  <!-- 第一层：数据输入层 -->
+  <g transform="translate(0, 120)">
+    <!-- 用户输入 -->
+    <rect x="50" y="50" width="140" height="80" rx="15" fill="url(#inputGradient)" filter="url(#shadow)"/>
+    <text x="120" y="85" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">👤 用户输入</text>
+    <text x="120" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#e2e8f0">自然语言描述</text>
+    
+    <!-- 需求分析 -->
+    <rect x="240" y="50" width="140" height="80" rx="15" fill="url(#processGradient)" filter="url(#shadow)"/>
+    <text x="310" y="85" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">🔍 需求分析</text>
+    <text x="310" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#fed7d7">理解并结构化</text>
+  </g>
+  
+  <!-- 第二层：AI处理层 -->
+  <g transform="translate(0, 250)">
+    <!-- Claude Code -->
+    <rect x="100" y="50" width="160" height="100" rx="20" fill="url(#aiGradient)" filter="url(#shadow)"/>
+    <text x="180" y="85" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="white">🧠 Claude Code</text>
+    <text x="180" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#fef5e7">智能代码生成</text>
+    <text x="180" y="125" text-anchor="middle" font-family="Arial" font-size="12" fill="#fef5e7">多工具协同</text>
+    
+    <!-- MCP服务器 -->
+    <rect x="320" y="30" width="120" height="60" rx="12" fill="#667eea" filter="url(#shadow)"/>
+    <text x="380" y="55" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🔌 MCP 1</text>
+    <text x="380" y="72" text-anchor="middle" font-family="Arial" font-size="10" fill="#e2e8f0">数据库</text>
+    
+    <rect x="320" y="100" width="120" height="60" rx="12" fill="#f093fb" filter="url(#shadow)"/>
+    <text x="380" y="125" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🔌 MCP 2</text>
+    <text x="380" y="142" text-anchor="middle" font-family="Arial" font-size="10" fill="#e2e8f0">API调用</text>
+    
+    <rect x="490" y="65" width="120" height="60" rx="12" fill="#a8edea" filter="url(#shadow)"/>
+    <text x="550" y="90" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">🔌 MCP N</text>
+    <text x="550" y="107" text-anchor="middle" font-family="Arial" font-size="10" fill="#2d3748">工具集成</text>
+  </g>
+  
+  <!-- 第三层：输出层 -->
+  <g transform="translate(0, 420)">
+    <!-- 代码生成 -->
+    <rect x="50" y="50" width="140" height="80" rx="15" fill="url(#outputGradient)" filter="url(#shadow)"/>
+    <text x="120" y="85" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">💻 代码生成</text>
+    <text x="120" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#c6f6d5">自动化实现</text>
+    
+    <!-- 执行结果 -->
+    <rect x="240" y="50" width="140" height="80" rx="15" fill="url(#outputGradient)" filter="url(#shadow)"/>
+    <text x="310" y="85" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">⚡ 执行结果</text>
+    <text x="310" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#c6f6d5">实时反馈</text>
+    
+    <!-- 用户反馈 -->
+    <rect x="430" y="50" width="140" height="80" rx="15" fill="url(#feedbackGradient)" filter="url(#shadow)"/>
+    <text x="500" y="85" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="white">📊 用户反馈</text>
+    <text x="500" y="105" text-anchor="middle" font-family="Arial" font-size="12" fill="#e9d8fd">持续优化</text>
+  </g>
+  
+  <!-- 流程箭头 -->
+  <g stroke="#4a5568" stroke-width="3" fill="none">
+    <!-- 主流程线 -->
+    <path d="M 190 210 L 240 210" marker-end="url(#arrowhead)"/>
+    <path d="M 120 250 L 120 290" marker-end="url(#arrowhead)"/>
+    <path d="M 180 400 L 180 450" marker-end="url(#arrowhead)"/>
+    <path d="M 190 510 L 240 510" marker-end="url(#arrowhead)"/>
+    
+    <!-- MCP连接线 -->
+    <path d="M 260 340 L 320 320" marker-end="url(#arrowhead)"/>
+    <path d="M 260 350 L 320 370" marker-end="url(#arrowhead)"/>
+    <path d="M 260 360 L 490 355" marker-end="url(#arrowhead)"/>
+    
+    <!-- 反馈循环 -->
+    <path d="M 500 470 Q 650 400 400 250" stroke="#9f7aea" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+  </g>
+  
+  <!-- 反馈标签 -->
+  <text x="580" y="380" text-anchor="middle" font-family="Arial" font-size="12" fill="#9f7aea" font-style="italic">
+    智能优化反馈循环
+  </text>
+  
+  <!-- 底部说明 -->
+  <g transform="translate(50, 550)">
+    <text x="0" y="0" font-family="Arial" font-size="12" fill="#718096">
+      💡 这个SVG图表由Claude直接生成，展示了AI驱动的完整工作流程
+    </text>
+    <text x="0" y="20" font-family="Arial" font-size="12" fill="#718096">
+      🚀 包含渐变效果、阴影、动画等高级视觉特效
+    </text>
+  </g>
+  
+  <!-- 装饰性元素 -->
+  <circle cx="750" cy="150" r="30" fill="#fed7d7" opacity="0.3"/>
+  <circle cx="800" cy="200" r="20" fill="#c6f6d5" opacity="0.4"/>
+  <circle cx="820" cy="120" r="15" fill="#fef5e7" opacity="0.5"/>
+  
+  <!-- 动态效果 -->
+  <g>
+    <circle cx="450" cy="300" r="5" fill="#667eea" opacity="0.6">
+      <animate attributeName="r" values="5;15;5" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>
