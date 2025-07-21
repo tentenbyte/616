@@ -1266,17 +1266,25 @@
         
         if (uniqueSet.size === 0) return [];
         if (uniqueSet.size === 1) {
-            // 单个值直接解码返回
-            return [this.decode(Array.from(uniqueSet)[0], columnIndex)];
+            // 单个值返回值-显示对象
+            var uint32Value = Array.from(uniqueSet)[0];
+            return [{
+                value: uint32Value,
+                display: this.decode(uint32Value, columnIndex)
+            }];
         }
         
         // 🚀 第二步：基数排序（专门优化uint32）
         var sortedUint32Values = this.radixSortUint32(Array.from(uniqueSet));
         
-        // 🎯 第三步：解码为显示值
+        // 🎯 第三步：返回值-显示对象数组
         var result = [];
         for (var i = 0; i < sortedUint32Values.length; i++) {
-            result.push(this.decode(sortedUint32Values[i], columnIndex));
+            var uint32Value = sortedUint32Values[i];
+            result.push({
+                value: uint32Value,           // uint32内部值
+                display: this.decode(uint32Value, columnIndex)  // 显示文本
+            });
         }
         
         return result;
@@ -1306,17 +1314,25 @@
         
         if (uniqueSet.size === 0) return [];
         if (uniqueSet.size === 1) {
-            // 单个值直接解码返回
-            return [this.decode(Array.from(uniqueSet)[0], columnIndex)];
+            // 单个值返回值-显示对象
+            var uint32Value = Array.from(uniqueSet)[0];
+            return [{
+                value: uint32Value,
+                display: this.decode(uint32Value, columnIndex)
+            }];
         }
         
         // 🚀 第二步：基数排序（专门优化uint32）
         var sortedUint32Values = this.radixSortUint32(Array.from(uniqueSet));
         
-        // 🎯 第三步：解码为显示值
+        // 🎯 第三步：返回值-显示对象数组
         var result = [];
         for (var i = 0; i < sortedUint32Values.length; i++) {
-            result.push(this.decode(sortedUint32Values[i], columnIndex));
+            var uint32Value = sortedUint32Values[i];
+            result.push({
+                value: uint32Value,           // uint32内部值
+                display: this.decode(uint32Value, columnIndex)  // 显示文本
+            });
         }
         
         return result;

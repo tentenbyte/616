@@ -346,20 +346,22 @@
      */
     FilterManager.prototype.applyValuesFilter = function(rowIndices, columnIndex, filterCondition) {
         var selectedItems = filterCondition.selectedItems || [];
-        var selectedSet = {};
         
-        // 构建快速查找集合
+        // 🚀 构建uint32快速查找集合
+        var selectedSet = {};
         for (var i = 0; i < selectedItems.length; i++) {
-            selectedSet[selectedItems[i]] = true;
+            selectedSet[selectedItems[i]] = true; // selectedItems现在是uint32数组
         }
         
         var result = [];
+        var rawData = this.db.columns[columnIndex]; // 直接访问ArrayBuffer
+        
+        // 🔥 极速筛选：uint32直接比较，无解码开销
         for (var j = 0; j < rowIndices.length; j++) {
             var rowIndex = rowIndices[j];
-            var cellValue = this.db.getValue(rowIndex, columnIndex);
-            var displayValue = cellValue === null || cellValue === undefined ? '' : String(cellValue);
+            var encodedValue = rawData[rowIndex]; // uint32直接取值
             
-            if (selectedSet[displayValue]) {
+            if (selectedSet[encodedValue]) { // uint32哈希查找
                 result.push(rowIndex);
             }
         }

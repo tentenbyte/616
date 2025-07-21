@@ -289,24 +289,24 @@
         if (!this.filterManager) return;
         
         try {
-            // 获取列的唯一值
+            // 获取列的唯一值（值-显示对象数组）
             this.state.uniqueValues = this.filterManager.getColumnUniqueValues(columnIndex);
             
             // 获取当前筛选条件
             var currentFilter = this.filterManager.getColumnFilter(columnIndex);
             
-            // 初始化选中状态
+            // 初始化选中状态（基于uint32值）
             this.state.selectedValues = {};
             
             if (currentFilter && currentFilter.type === 'values' && currentFilter.selectedItems) {
-                // 恢复之前的选择
+                // 恢复之前的选择（selectedItems现在是uint32数组）
                 for (var i = 0; i < currentFilter.selectedItems.length; i++) {
                     this.state.selectedValues[currentFilter.selectedItems[i]] = true;
                 }
             } else {
-                // 默认全选
+                // 默认全选（基于uint32值）
                 for (var j = 0; j < this.state.uniqueValues.length; j++) {
-                    this.state.selectedValues[this.state.uniqueValues[j]] = true;
+                    this.state.selectedValues[this.state.uniqueValues[j].value] = true;
                 }
             }
             
@@ -451,7 +451,7 @@
         var endIndex = Math.min(visibleItems.length, startIndex + Math.ceil(listHeight / this.uiConfig.itemHeight) + 1);
         
         for (var i = startIndex; i < endIndex; i++) {
-            var item = visibleItems[i];
+            var itemObj = visibleItems[i];  // 现在是 {value: uint32, display: string}
             var itemY = listStartY + (i * this.uiConfig.itemHeight) - this.state.scrollTop;
             
             // 检查项目是否在可见区域内
@@ -473,8 +473,8 @@
             this.ctx.lineWidth = 1;
             this.ctx.strokeRect(checkboxX, checkboxY, this.uiConfig.checkboxSize, this.uiConfig.checkboxSize);
             
-            // 绘制选中标记
-            if (this.state.selectedValues[item]) {
+            // 绘制选中标记（基于uint32值检查选中状态）
+            if (this.state.selectedValues[itemObj.value]) {
                 this.ctx.fillStyle = '#3498db';
                 this.ctx.fillRect(checkboxX + 2, checkboxY + 2, this.uiConfig.checkboxSize - 4, this.uiConfig.checkboxSize - 4);
             } else {
@@ -482,7 +482,7 @@
                 this.ctx.fillRect(checkboxX + 1, checkboxY + 1, this.uiConfig.checkboxSize - 2, this.uiConfig.checkboxSize - 2);
             }
             
-            // 绘制项目文本
+            // 绘制项目文本（显示友好的显示文本）
             var textX = checkboxX + this.uiConfig.checkboxSize + this.uiConfig.checkboxMargin;
             var textY = itemY + this.uiConfig.itemHeight / 2;
             
@@ -491,15 +491,16 @@
             this.ctx.textAlign = 'left';
             this.ctx.textBaseline = 'middle';
             
-            // 文本截断
+            // 文本截断（使用显示文本）
             var maxTextWidth = this.state.width - textX - 8;
-            var displayText = this.truncateText(item, maxTextWidth);
+            var displayText = this.truncateText(itemObj.display, maxTextWidth);
             this.ctx.fillText(displayText, textX, textY);
             
-            // 记录交互区域
+            // 记录交互区域（保存uint32值用于交互）
             this.interactionAreas.items.push({
                 index: i,
-                value: item,
+                value: itemObj.value,     // uint32值用于内部逻辑
+                display: itemObj.display, // 显示文本用于搜索
                 x: 8,
                 y: itemY,
                 width: this.state.width - 16,
@@ -702,7 +703,7 @@
     FilterPanel.prototype.selectAll = function() {
         var visibleItems = this.getFilteredUniqueValues();
         for (var i = 0; i < visibleItems.length; i++) {
-            this.state.selectedValues[visibleItems[i]] = true;
+            this.state.selectedValues[visibleItems[i].value] = true;  // 使用uint32值
         }
         this.render();
     };
@@ -713,14 +714,14 @@
     FilterPanel.prototype.selectNone = function() {
         var visibleItems = this.getFilteredUniqueValues();
         for (var i = 0; i < visibleItems.length; i++) {
-            this.state.selectedValues[visibleItems[i]] = false;
+            this.state.selectedValues[visibleItems[i].value] = false; // 使用uint32值
         }
         this.render();
     };
     
     /**
      * 切换项目选择状态
-     * @param {string} value 值
+     * @param {number} value uint32值
      */
     FilterPanel.prototype.toggleItemSelection = function(value) {
         this.state.selectedValues[value] = !this.state.selectedValues[value];
@@ -733,15 +734,15 @@
     FilterPanel.prototype.applyFilter = function() {
         if (!this.filterManager) return;
         
-        // 收集选中的值
+        // 收集选中的uint32值
         var selectedItems = [];
         for (var value in this.state.selectedValues) {
             if (this.state.selectedValues[value]) {
-                selectedItems.push(value);
+                selectedItems.push(parseInt(value)); // 确保是数字类型
             }
         }
         
-        // 创建筛选条件
+        // 创建筛选条件（selectedItems现在是uint32数组）
         var filterCondition = {
             type: 'values',
             selectedItems: selectedItems
@@ -770,9 +771,10 @@
         var filtered = [];
         
         for (var i = 0; i < this.state.uniqueValues.length; i++) {
-            var value = this.state.uniqueValues[i];
-            if (String(value).toLowerCase().indexOf(searchText) >= 0) {
-                filtered.push(value);
+            var itemObj = this.state.uniqueValues[i]; // {value: uint32, display: string}
+            // 基于显示文本进行搜索
+            if (itemObj.display.toLowerCase().indexOf(searchText) >= 0) {
+                filtered.push(itemObj);
             }
         }
         
