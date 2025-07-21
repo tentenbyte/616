@@ -416,14 +416,32 @@
      * 保存当前值
      */
     EditWidget.prototype.saveCurrentValue = function() {
-        if (!this.state.globalInput || !this.tableCore) return;
+        if (!this.state.globalInput || !this.tableCore) {
+            console.error('🔧 调试: saveCurrentValue失败 - 缺少必要组件', {
+                hasGlobalInput: !!this.state.globalInput,
+                hasTableCore: !!this.tableCore
+            });
+            return;
+        }
         
         var value = this.state.globalInput.value;
         var row = this.state.currentCell.row;
         var col = this.state.currentCell.col;
         
+        console.log('🔧 调试: saveCurrentValue被调用', {
+            value: value,
+            row: row,
+            col: col,
+            valueLength: value ? value.length : 0,
+            valueType: typeof value
+        });
+        
         if (row >= 0 && col >= 0) {
+            console.log('🔧 调试: 准备调用tableCore.setCellValue');
             this.tableCore.setCellValue(row, col, value);
+            console.log('🔧 调试: tableCore.setCellValue已调用完成');
+        } else {
+            console.error('🔧 调试: 无效的行列索引', { row: row, col: col });
         }
     };
     
@@ -617,8 +635,13 @@
         this.state.globalInput.focus();
         
         console.log('🔧 调试: 输入框值已更新为:', this.state.globalInput.value);
+        
+        // 🔧 修复: 立即保存当前值，而不是等待用户手动保存
+        console.log('🔧 调试: 立即触发保存当前值');
+        this.saveCurrentValue();
+        
         this.hideAllHelpers();
-        console.log('🔧 调试: 辅助控件已隐藏');
+        console.log('🔧 调试: 辅助控件已隐藏，保存已完成');
     };
     
     /**

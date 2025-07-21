@@ -128,7 +128,19 @@
     SimpleTableCore.prototype.setCellValue = function(row, col, value) {
         var oldValue = this.db.getValue(row, col) || '';
         
+        console.log('🔧 调试: setCellValue被调用', {
+            row: row,
+            col: col,
+            newValue: value,
+            oldValue: oldValue,
+            valuesEqual: oldValue === value,
+            oldValueType: typeof oldValue,
+            newValueType: typeof value
+        });
+        
         if (oldValue !== value) {
+            console.log('🔧 调试: 值发生变化，开始保存流程');
+            
             // 添加到历史记录
             this.addToHistory({
                 type: 'cellChange',
@@ -139,14 +151,19 @@
             });
             
             // 更新数据
+            console.log('🔧 调试: 调用db.setValue');
             this.db.setValue(row, col, value);
             this.state.isDirty = true;
             
             // 触发保存和事件
+            console.log('🔧 调试: 触发debouncedSave和事件');
             this.debouncedSave();
             this.eventManager.emit(global.EVENTS.TABLE_DATA_CHANGED, {
                 row: row, col: col, value: value
             });
+            console.log('🔧 调试: setCellValue保存流程完成');
+        } else {
+            console.log('🔧 调试: 值未发生变化，跳过保存');
         }
     };
 
