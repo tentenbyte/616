@@ -87,7 +87,7 @@ input#edit-global-input,
     padding: 0 3px;
     margin: 0;
     z-index: 1000;
-    font-size: 14px;
+    font-size: 13px;
     font-family: 'Cascadia Code', monospace;
     font-weight: normal;
     line-height: 30px;
@@ -276,7 +276,7 @@ input#edit-global-input:focus {
     }
     
     input#edit-global-input {
-        font-size: 13px;
+        font-size: 12px;
     }
 }
 

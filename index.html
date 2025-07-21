@@ -38,7 +38,7 @@
             <span id="status-text">正在加载...</span>
         </div>
         <div class="info">
-            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化</span>
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化 - 点击列头: 升序→降序→原始</span>
         </div>
     </div>
 
@@ -114,6 +114,15 @@
                             // 延迟添加示例数据（如果IndexedDB为空）
                             setTimeout(function() {
                                 addSampleDataIfNeeded();
+                            
+                            // 🗺️ 重新编码所有日期数据
+                            reEncodeAllDates();
+                            
+                            // 🔧 验证数据完整性
+                            validateDataIntegrity();
+                            
+                            // 🔧 验证日期编码修复
+                            validateDateEncodingFix();
                             }, 500);
                             
                             showInitialEdit();
@@ -166,16 +175,42 @@
                     ];
                     
                     // 批量添加数据
+                    console.log('📝 开始添加示例数据...');
                     for (var row = 0; row < sampleData.length; row++) {
                         for (var col = 0; col < sampleData[row].length; col++) {
-                            app.tableCore.setCellValue(row, col, sampleData[row][col]);
+                            try {
+                                app.tableCore.setCellValue(row, col, sampleData[row][col]);
+                                if (row === 0) { // 只记录第一行，避免太多日志
+                                    console.log('✅ 成功设置[' + row + ',' + col + ']:', sampleData[row][col]);
+                                }
+                            } catch (error) {
+                                console.error('❌ 设置单元格[' + row + ',' + col + ']失败:', error);
+                                console.error('   数据:', sampleData[row][col]);
+                                throw error; // 重新抛出错误以便上层处理
+                            }
                         }
                     }
+                    console.log('✅ 示例数据添加完成');
                     
-                    // 强制更新数据库状态
-                    app.tableCore.db.currentRows = 20;
-                    app.tableCore.db.visibleRows = 20;
-                    app.tableCore.state.isDirty = true;
+                    // 🔧 强制更新数据库状态（新架构适配）
+                    if (app.tableCore && app.tableCore.db) {
+                        app.tableCore.db.totalRows = 20;     // 存储层总行数
+                        app.tableCore.db.currentRows = 20;   // 向后兼容
+                        app.tableCore.db.visibleRows = 20;   // 视图层可见行数
+                        app.tableCore.state.isDirty = true;
+                        
+                        // 🔧 安全检查：确保displayIndices存在并正确初始化
+                        if (app.tableCore.db.displayIndices) {
+                            for (var i = 0; i < 20; i++) {
+                                app.tableCore.db.displayIndices[i] = i;
+                            }
+                            console.log('✅ displayIndices已初始化:', Array.from(app.tableCore.db.displayIndices.slice(0, 5)));
+                        } else {
+                            console.error('❌ displayIndices未定义！');
+                        }
+                    } else {
+                        console.error('❌ app.tableCore或db未定义！');
+                    }
                     
                     app.tableCore.render();
                     showStats();
@@ -416,6 +451,130 @@
                 }
             }
             
+            // 🗺️ 重新编码所有日期数据
+            function reEncodeAllDates() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🗺️ 开始重新编码所有日期数据...');
+                    
+                    // 遵循原始数据的日期格式
+                    var dateData = [
+                        '2024-01-15', '2024-02-20', '2024-03-10', '2024-04-15', '2024-05-22',
+                        '2024-06-08', '2024-07-12', '2024-08-18', '2024-09-25', '2024-10-30',
+                        '2024-11-05', '2024-12-12', '2025-01-08', '2025-02-14', '2025-03-20',
+                        '2025-04-25', '2025-05-30', '2025-06-15', '2025-07-20', '2025-08-28'
+                    ];
+                    
+                    // 重新设置G列（第6列）的所有日期
+                    for (var row = 0; row < dateData.length && row < 20; row++) {
+                        console.log('📌 重新设置第' + row + '行的日期:', dateData[row]);
+                        app.tableCore.setCellValue(row, 6, dateData[row]); // G列是第6列
+                    }
+                    
+                    console.log('✅ 日期重新编码完成！');
+                    app.tableCore.render();
+                    
+                } catch (error) {
+                    console.error('重新编码日期失败:', error);
+                }
+            }
+            
+            // 🔧 验证数据完整性和显示问题
+            function validateDataIntegrity() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🔍 验证数据完整性...');
+                    var db = app.tableCore.db;
+                    
+                    // 检查存储层数据
+                    console.log('📊 存储层状态:');
+                    console.log('   totalRows:', db.totalRows);
+                    console.log('   visibleRows:', db.visibleRows);
+                    console.log('   displayIndices前5项:', Array.from(db.displayIndices.slice(0, 5)));
+                    
+                    // 检查每列的数据
+                    for (var col = 0; col < 8; col++) {
+                        console.log('🔍 列' + col + '数据检查:');
+                        
+                        // 存储层原始数据（前3行）
+                        var storageData = [];
+                        for (var row = 0; row < 3 && row < db.totalRows; row++) {
+                            var encoded = db.columns[col][row];
+                            var decoded = db.decode(encoded, col);
+                            storageData.push({ row: row, encoded: encoded, decoded: decoded });
+                        }
+                        console.log('   存储层数据:', storageData);
+                        
+                        // 视图层显示数据（前3行）
+                        var viewData = [];
+                        for (var viewRow = 0; viewRow < 3 && viewRow < db.visibleRows; viewRow++) {
+                            var actualRow = db.displayIndices[viewRow];
+                            var value = db.getDisplayValue(viewRow, col);
+                            viewData.push({ viewRow: viewRow, actualRow: actualRow, value: value });
+                        }
+                        console.log('   视图层数据:', viewData);
+                        console.log('');
+                    }
+                    
+                } catch (error) {
+                    console.error('数据完整性检查失败:', error);
+                }
+            }
+            
+            // 🔧 验证日期编码修复
+            function validateDateEncodingFix() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🔧 验证日期编码修复...');
+                    
+                    // 获取G列的编码值并显示排序结果
+                    var db = app.tableCore.db;
+                    var encodedValues = [];
+                    
+                    // 收集所有编码值和原始日期
+                    for (var row = 0; row < 20; row++) {
+                        var encodedValue = db.columns[6][row]; // G列编码值
+                        var decodedValue = db.decode(encodedValue, 6); // 解码回日期
+                        encodedValues.push({
+                            row: row,
+                            encoded: encodedValue,
+                            decoded: decodedValue,
+                            hex: '0x' + encodedValue.toString(16)
+                        });
+                    }
+                    
+                    // 按编码值排序
+                    encodedValues.sort(function(a, b) { return a.encoded - b.encoded; });
+                    
+                    console.log('📊 修复后的日期编码排序结果:');
+                    console.log('   编码值从小到大的日期顺序:');
+                    for (var i = 0; i < encodedValues.length; i++) {
+                        var item = encodedValues[i];
+                        console.log('     第' + item.row + '行: ' + item.decoded + ' → 编码值: ' + item.hex + ' (' + item.encoded + ')');
+                    }
+                    
+                    // 检查2024年和2025年的排序是否正确
+                    var dates2024 = encodedValues.filter(function(item) { return item.decoded.startsWith('2024'); });
+                    var dates2025 = encodedValues.filter(function(item) { return item.decoded.startsWith('2025'); });
+                    
+                    if (dates2024.length > 0 && dates2025.length > 0) {
+                        var max2024 = Math.max.apply(null, dates2024.map(function(item) { return item.encoded; }));
+                        var min2025 = Math.min.apply(null, dates2025.map(function(item) { return item.encoded; }));
+                        
+                        console.log('🎯 年份排序验证:');
+                        console.log('   2024年最大编码值: ' + max2024 + ' (0x' + max2024.toString(16) + ')');
+                        console.log('   2025年最小编码值: ' + min2025 + ' (0x' + min2025.toString(16) + ')');
+                        console.log('   排序是否正确: ' + (max2024 < min2025 ? '✅ 是' : '❌ 否'));
+                    }
+                    
+                } catch (error) {
+                    console.error('验证日期编码失败:', error);
+                }
+            }
+            
             // 启用自动保存
             function enableAutoSave() {
                 if (!app.tableCore) return;
@@ -455,6 +614,7 @@
             } else {
                 init();
             }
+            
             
         })();
     </script>

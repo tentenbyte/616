@@ -12,26 +12,48 @@
      * @param {number} maxCols 最大列数
      */
     function SimpleColumnarDB(maxRows, maxCols) {
+        console.log('🏗️ SimpleColumnarDB构造函数:', {maxRows: maxRows, maxCols: maxCols});
+        
         // 核心：每列是真正独立的ArrayBuffer + Uint32Array
         this.buffers = [];
         this.columns = [];
         
+        console.log('📊 开始创建' + maxCols + '个列...');
         for (var i = 0; i < maxCols; i++) {
-            // 强制每列使用独立的ArrayBuffer
-            this.buffers[i] = new ArrayBuffer(maxRows * 4);
-            this.columns[i] = new Uint32Array(this.buffers[i]);
+            try {
+                // 强制每列使用独立的ArrayBuffer
+                this.buffers[i] = new ArrayBuffer(maxRows * 4);
+                this.columns[i] = new Uint32Array(this.buffers[i]);
+                if (i < 3) { // 只记录前3列
+                    console.log('  列' + i + '创建成功, 长度:', this.columns[i].length);
+                }
+            } catch (error) {
+                console.error('❌ 创建列' + i + '失败:', error);
+                throw error;
+            }
         }
+        console.log('✅ 所有列创建完成');
         
         // 每列独立的字符串池
         this.stringPools = [];
         this.stringMaps = [];
         this.nextStringIds = [];
         
+        console.log('🗃️ 开始创建字符串池...');
         for (var i = 0; i < maxCols; i++) {
-            this.stringPools[i] = [''];  // 索引0保留给null
-            this.stringMaps[i] = {'': 0};
-            this.nextStringIds[i] = 1;
+            try {
+                this.stringPools[i] = [''];  // 索引0保留给null
+                this.stringMaps[i] = {'': 0};
+                this.nextStringIds[i] = 1;
+                if (i < 3) { // 只记录前3列
+                    console.log('  列' + i + '字符串池创建成功');
+                }
+            } catch (error) {
+                console.error('❌ 创建列' + i + '字符串池失败:', error);
+                throw error;
+            }
         }
+        console.log('✅ 所有字符串池创建完成');
         
         // 基本信息
         this.maxRows = maxRows;
@@ -54,18 +76,26 @@
             this.columnNames[i] = this.generateColumnName(i);
         }
         
-        // 缓存的计数排序结果
-        this.cachedCounts = {};
-        this.cacheValid = {};
+        // 🗂️ 存储层与视图层分离架构
+        // 存储层：完整的列式数据（永不改变原始顺序）
+        this.totalRows = 0;        // 存储层的总行数
+        this.currentRows = 0;      // 向后兼容字段
         
-        // 每列的排序索引
-        this.sortedIndices = [];
-        this.sortedValues = [];
+        // 视图层：控制显示的行序列（这是唯一的真相源）
+        // displayIndices[i] = actualRowIndex 表示视图第i行对应存储层的actualRowIndex行
+        this.visibleRows = 0;      // 视图层的可见行数
+        
+        // 排序状态跟踪
+        this.lastSortColumn = undefined;
+        this.lastSortAscending = undefined;
+        
+        // 🔧 向后兼容：保留旧的缓存数组（避免引用错误）
+        this.cacheValid = [];
+        this.cachedCounts = {};
         this.sortIndexValid = [];
         
         for (var i = 0; i < maxCols; i++) {
-            this.sortedIndices[i] = [];  // 排序后的行索引数组
-            this.sortedValues[i] = [];   // 排序后的值数组
+            this.cacheValid[i] = false;
             this.sortIndexValid[i] = false;
         }
     }
@@ -95,13 +125,67 @@
             return 0;
         }
         
-        // 数字直接存储（正整数）
-        if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
-            return value;
+        // 检查是否为日期格式 (YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss)
+        var str = String(value).trim();
+        var dateMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/);
+        if (dateMatch) {
+            var originalYear = parseInt(dateMatch[1], 10);
+            var year = originalYear - 2020; // 从2020年开始
+            var month = parseInt(dateMatch[2], 10);
+            var day = parseInt(dateMatch[3], 10);
+            var hour = dateMatch[4] ? parseInt(dateMatch[4], 10) : 0;
+            var minute = dateMatch[5] ? parseInt(dateMatch[5], 10) : 0;
+            var second = dateMatch[6] ? parseInt(dateMatch[6], 10) : 0;
+            
+            // 检查范围合法性
+            if (year >= 0 && year < 64 && month >= 1 && month <= 12 && 
+                day >= 1 && day <= 31 && hour >= 0 && hour < 24 && 
+                minute >= 0 && minute < 60 && second >= 0 && second < 60) {
+                
+                // 紧凑编码：年6位 + 月4位 + 日5位 + 时6位 + 分6位 + 秒6位
+                var encoded = (year << 26) | (month << 22) | (day << 17) | (hour << 11) | (minute << 5) | second;
+                var finalEncoded = encoded | 0x80000000; // 最高位标记为日期
+                
+                // 📊 详细日期编码调试
+                console.log('📅 日期编码:', str);
+                console.log('   解析: ' + originalYear + '年 ' + month + '月 ' + day + '日 ' + hour + ':' + minute + ':' + second);
+                console.log('   相对年: ' + year + ' (从2020年起)');
+                console.log('   位移计算:');
+                console.log('     年(' + year + ') << 26 = 0x' + (year << 26).toString(16));
+                console.log('     月(' + month + ') << 22 = 0x' + (month << 22).toString(16));
+                console.log('     日(' + day + ') << 17 = 0x' + (day << 17).toString(16));
+                console.log('     时(' + hour + ') << 11 = 0x' + (hour << 11).toString(16));
+                console.log('     分(' + minute + ') << 5 = 0x' + (minute << 5).toString(16));
+                console.log('     秒(' + second + ') = 0x' + second.toString(16));
+                console.log('   最终编码: 0x' + finalEncoded.toString(16) + ' (' + finalEncoded + ')');
+                console.log('   无标记位: 0x' + encoded.toString(16) + ' (' + encoded + ')');
+                console.log('');
+                
+                return finalEncoded;
+            }
+        }
+        
+        // 尝试解析为数字（包括小数）
+        var numValue = Number(value);
+        if (!isNaN(numValue) && isFinite(numValue)) {
+            // 整数直接存储
+            if (Number.isInteger(numValue) && numValue >= 0 && numValue < 1000000000) {
+                return numValue;
+            }
+            // 小数乘以100存储（保留2位小数精度）
+            if (numValue >= 0 && numValue < 10000000) {
+                return Math.round(numValue * 100) | 0x40000000; // 次高位标记为小数
+            }
         }
         
         // 字符串使用该列的字符串池
-        var str = String(value);
+        if (!this.stringMaps || !this.stringPools || !this.nextStringIds) {
+            throw new Error('字符串池未初始化');
+        }
+        if (!this.stringMaps[col] || !this.stringPools[col] || this.nextStringIds[col] === undefined) {
+            throw new Error('列' + col + '的字符串池未初始化');
+        }
+        
         var stringMap = this.stringMaps[col];
         var stringPool = this.stringPools[col];
         
@@ -119,44 +203,164 @@
      * @param {number} col 列索引
      */
     SimpleColumnarDB.prototype.decode = function(encoded, col) {
-        if (encoded === 0) return '';  // 🔧 修复：返回空字符串而不是null，便于渲染器处理
-        if (encoded < this.nextStringIds[col]) {
-            return this.stringPools[col][encoded];
+        if (encoded === 0) return '';  // 返回空字符串
+        
+        // 检查是否是日期（最高位标记）
+        if (encoded & 0x80000000) {
+            var dateData = encoded & 0x7FFFFFFF; // 去掉标记位
+            var year = ((dateData >> 26) & 0x3F) + 2020;  // 6位年份
+            var month = (dateData >> 22) & 0x0F;          // 4位月份
+            var day = (dateData >> 17) & 0x1F;            // 5位日期
+            var hour = (dateData >> 11) & 0x3F;           // 6位小时
+            var minute = (dateData >> 5) & 0x3F;          // 6位分钟
+            var second = dateData & 0x3F;                 // 6位秒数（与编码格式保持一致）
+            
+            // 格式化为日期字符串
+            var dateStr = year + '-' + 
+                         String(month).padStart(2, '0') + '-' + 
+                         String(day).padStart(2, '0');
+            
+            if (hour > 0 || minute > 0 || second > 0) {
+                dateStr += ' ' + String(hour).padStart(2, '0') + ':' + 
+                          String(minute).padStart(2, '0') + ':' + 
+                          String(second).padStart(2, '0');
+            }
+            
+            return dateStr;
         }
-        return encoded;
+        
+        // 检查是否是小数（次高位标记）
+        if (encoded & 0x40000000) {
+            var decimalData = encoded & 0x3FFFFFFF; // 去掉标记位
+            return decimalData / 100; // 小数解码
+        }
+        
+        if (encoded < this.nextStringIds[col]) {
+            // 从字符串池获取值
+            var stringValue = this.stringPools[col][encoded];
+            
+            // 如果字符串池中的值是数字，返回数字类型
+            var numValue = Number(stringValue);
+            if (!isNaN(numValue) && String(numValue) === stringValue.trim()) {
+                return numValue; // 返回数字类型
+            }
+            
+            return stringValue; // 返回字符串类型
+        }
+        
+        return encoded; // 直接编码的整数
     };
 
     /**
      * 设置单元格值
      */
-    SimpleColumnarDB.prototype.setValue = function(row, col, value) {
-        if (row >= this.maxRows || col >= this.maxCols) {
-            throw new Error('索引超出范围');
+    /**
+     * 🔹 存储层操作：设置单元格值
+     * @param {number} actualRow 存储层的实际行号
+     * @param {number} col 列号
+     * @param {*} value 要设置的值
+     */
+    SimpleColumnarDB.prototype.setValue = function(actualRow, col, value) {
+        // 🔧 详细的参数和状态检查
+        console.log('🔍 setValue调用:', {
+            actualRow: actualRow, 
+            col: col, 
+            value: value,
+            maxRows: this.maxRows,
+            maxCols: this.maxCols,
+            columnsExists: !!this.columns,
+            columnsLength: this.columns ? this.columns.length : 'undefined'
+        });
+        
+        // 🔧 分步检查columns[col]
+        if (this.columns && col < this.columns.length) {
+            console.log('  columns[' + col + ']存在:', !!this.columns[col]);
+            if (this.columns[col]) {
+                console.log('  columns[' + col + ']长度:', this.columns[col].length);
+            }
         }
         
-        this.columns[col][row] = this.encode(value, col);
-        this.currentRows = Math.max(this.currentRows, row + 1);
-        this.visibleRows = this.currentRows;  // 更新可见行数
-        
-        // 清除该列的所有缓存和索引
-        this.cacheValid[col] = false;
-        this.sortIndexValid[col] = false;
-        
-        // 清除倒排索引
-        if (this.invertedIndexValid && this.invertedIndexValid[col]) {
-            this.invertedIndexValid[col] = false;
+        if (actualRow >= this.maxRows || col >= this.maxCols) {
+            throw new Error('索引超出范围: row=' + actualRow + ', col=' + col + ', maxRows=' + this.maxRows + ', maxCols=' + this.maxCols);
         }
+        
+        // 🔧 安全检查：确保columns数组和目标列存在
+        if (!this.columns) {
+            throw new Error('columns数组未初始化');
+        }
+        if (!this.columns[col]) {
+            throw new Error('columns[' + col + ']未初始化, columns.length=' + this.columns.length);
+        }
+        
+        try {
+            // 编码值
+            var encodedValue = this.encode(value, col);
+            console.log('  编码结果:', encodedValue);
+            
+            // 直接操作存储层
+            this.columns[col][actualRow] = encodedValue;
+            console.log('  存储成功');
+            
+            // 更新存储层统计
+            this.totalRows = Math.max(this.totalRows, actualRow + 1);
+            this.currentRows = this.totalRows; // 向后兼容
+            
+            // 如果是新行，自动添加到视图中（保持原始顺序）
+            if (actualRow >= this.visibleRows) {
+                // 扩展视图以包含新行
+                for (var i = this.visibleRows; i <= actualRow; i++) {
+                    this.displayIndices[i] = i; // 新行按原始顺序添加
+                }
+                this.visibleRows = actualRow + 1;
+            }
+        } catch (error) {
+            console.error('❌ setValue内部错误:', error);
+            throw error;
+        }
+    };
+    
+    /**
+     * 🔹 视图层操作：通过视图行号设置单元格值 
+     * 兼容旧接口，自动转换视图行号到实际行号
+     * @param {number} viewRow 视图中的行号
+     * @param {number} col 列号  
+     * @param {*} value 要设置的值
+     */
+    SimpleColumnarDB.prototype.setValueByViewRow = function(viewRow, col, value) {
+        if (viewRow >= this.visibleRows) {
+            throw new Error('视图行索引超出范围');
+        }
+        
+        var actualRow = this.displayIndices[viewRow]; // 转换为实际行号
+        this.setValue(actualRow, col, value);
     };
 
     /**
-     * 获取单元格值
+     * 🔹 存储层操作：获取单元格值 
+     * @param {number} actualRow 存储层的实际行号
+     * @param {number} col 列号
      */
-    SimpleColumnarDB.prototype.getValue = function(row, col) {
-        if (row >= this.maxRows || col >= this.maxCols) {
+    SimpleColumnarDB.prototype.getValue = function(actualRow, col) {
+        if (actualRow >= this.maxRows || col >= this.maxCols) {
             return null;
         }
         
-        return this.decode(this.columns[col][row], col);
+        return this.decode(this.columns[col][actualRow], col);
+    };
+    
+    /**
+     * 🔹 视图层操作：通过视图行号获取单元格值
+     * 兼容旧接口，自动转换视图行号到实际行号
+     * @param {number} viewRow 视图中的行号  
+     * @param {number} col 列号
+     */
+    SimpleColumnarDB.prototype.getValueByViewRow = function(viewRow, col) {
+        if (viewRow >= this.visibleRows) {
+            return null;
+        }
+        
+        var actualRow = this.displayIndices[viewRow]; // 转换为实际行号
+        return this.getValue(actualRow, col);
     };
 
     /**
@@ -250,56 +454,321 @@
     };
 
     /**
-     * 基数排序 + 行索引跟踪
+     * 🚀 真正的32位基数排序 - 同步排序值和行索引
+     * O(n)时间复杂度，4轮8位基数排序
+     * @param {number} col 要排序的列
+     * @return {Array} 排序后的行索引数组
      */
-    SimpleColumnarDB.prototype.radixSortWithIndices = function(col) {
+    SimpleColumnarDB.prototype.generateSortedIndices = function(col) {
+        var length = this.totalRows;
+        if (length <= 1) return [0];
+        
+        var startTime = performance.now();
+        
+        // 🔸 创建两个同步数组：值数组和行索引数组
+        var values = new Uint32Array(length);
+        var indices = new Uint32Array(length);
+        var tempValues = new Uint32Array(length);
+        var tempIndices = new Uint32Array(length);
+        
+        var column = this.columns[col];
+        
+        // 初始化：复制列数据和行索引
+        for (var i = 0; i < length; i++) {
+            values[i] = column[i];
+            indices[i] = i;
+        }
+        
+        // 🔥 4轮基数排序，每轮处理8位（共32位）
+        for (var shift = 0; shift < 32; shift += 8) {
+            var count = new Array(256);
+            count.fill(0);
+            
+            // 第1步：计数当前8位数字的分布
+            for (var i = 0; i < length; i++) {
+                var digit = (values[i] >> shift) & 0xFF;
+                count[digit]++;
+            }
+            
+            // 第2步：计算累积位置（前缀和）
+            for (var i = 1; i < 256; i++) {
+                count[i] += count[i - 1];
+            }
+            
+            // 第3步：稳定分配，从后往前保持稳定性
+            for (var i = length - 1; i >= 0; i--) {
+                var digit = (values[i] >> shift) & 0xFF;
+                var pos = --count[digit];
+                tempValues[pos] = values[i];
+                tempIndices[pos] = indices[i];  // 同步移动行索引
+            }
+            
+            // 第4步：交换数组指针
+            var swapValues = values;
+            values = tempValues;
+            tempValues = swapValues;
+            
+            var swapIndices = indices;
+            indices = tempIndices;
+            tempIndices = swapIndices;
+        }
+        
+        // 转换为普通数组返回
+        var sortedRowIndices = new Array(length);
+        for (var i = 0; i < length; i++) {
+            sortedRowIndices[i] = indices[i];
+        }
+        
+        var endTime = performance.now();
+        var sortTime = endTime - startTime;
+        var rowsPerMs = (length / sortTime).toFixed(0);
+        
+        console.log('🚀 列' + col + ' 基数排序完成 (O(n))');
+        console.log('   数据量:', length + '行');
+        console.log('   耗时:', sortTime.toFixed(2) + 'ms'); 
+        console.log('   性能:', rowsPerMs + '行/ms');
+        console.log('   前5个排序结果:', sortedRowIndices.slice(0, 5));
+        
+        return sortedRowIndices;
+    };
+
+    /**
+     * 检查列是否是字符串类型
+     */
+    SimpleColumnarDB.prototype.isColumnStringType = function(col) {
+        if (this.currentRows === 0) return false;
+        
+        // 检查前几行数据，如果存在字符串池索引，则认为是字符串列
+        for (var i = 0; i < Math.min(10, this.currentRows); i++) {
+            var encoded = this.columns[col][i];
+            if (encoded > 0 && encoded < this.nextStringIds[col]) {
+                // 存在字符串池索引，是字符串列
+                return true;
+            }
+        }
+        return false;
+    };
+
+    /**
+     * 检查列是否是数值类型
+     */
+    SimpleColumnarDB.prototype.isColumnNumericType = function(col) {
+        if (this.currentRows === 0) return false;
+        
+        var numericCount = 0;
+        var nonEmptyCount = 0;
+        
+        // 检查前10行数据，看数字比例
+        for (var i = 0; i < Math.min(10, this.currentRows); i++) {
+            var encoded = this.columns[col][i];
+            if (encoded === 0) continue; // 跳过空值
+            
+            nonEmptyCount++;
+            
+            // 检查是否是直接编码的数字（大于字符串池最大ID）
+            if (encoded >= this.nextStringIds[col]) {
+                numericCount++;
+            } else {
+                // 检查字符串池中的值是否为数字
+                var decodedValue = this.decode(encoded, col);
+                var strValue = String(decodedValue).trim();
+                if (strValue !== '' && !isNaN(Number(strValue))) {
+                    numericCount++;
+                }
+            }
+        }
+        
+        // 如果80%以上是数字，认为是数值列
+        return nonEmptyCount > 0 && (numericCount / nonEmptyCount) >= 0.8;
+    };
+
+    /**
+     * 🚀 超高性能数值排序 - 混合数字处理
+     */
+    SimpleColumnarDB.prototype.fastNumericSortWithIndices = function(col) {
         var length = this.currentRows;
         if (length <= 1) return { indices: [0], values: [this.columns[col][0]] };
         
-        // 创建 (值, 行索引) 对，打包到单个uint32中
-        // 高20位存值，低12位存行索引（支持4096行）
-        var packed = new Uint32Array(length);
+        // 创建 (数值, 行索引) 对进行排序
+        var sortPairs = [];
         var column = this.columns[col];
         
         for (var i = 0; i < length; i++) {
-            // 假设行索引 < 4096，值 < 1048576
-            packed[i] = (column[i] << 12) | i;
+            var encoded = column[i];
+            var numericValue;
+            
+            if (encoded >= this.nextStringIds[col]) {
+                // 直接编码的数字
+                numericValue = encoded;
+            } else {
+                // 字符串池中的值，尝试解析为数字
+                var decoded = this.decode(encoded, col);
+                var parsed = Number(decoded);
+                numericValue = isNaN(parsed) ? Infinity : parsed; // 非数字排在最后
+            }
+            
+            sortPairs.push({
+                value: numericValue,
+                originalIndex: i,
+                encodedValue: encoded
+            });
         }
         
-        // 基数排序
-        this.radixSort(packed, length);
+        // 按数值排序
+        sortPairs.sort(function(a, b) {
+            return a.value - b.value;
+        });
         
-        // 提取排序后的索引和值
+        // 提取排序后的索引和编码值
         var sortedIndices = new Array(length);
         var sortedValues = new Array(length);
         
         for (var i = 0; i < length; i++) {
-            sortedIndices[i] = packed[i] & 0xFFF;  // 低12位
-            sortedValues[i] = packed[i] >> 12;     // 高20位
+            sortedIndices[i] = sortPairs[i].originalIndex;
+            sortedValues[i] = sortPairs[i].encodedValue;
         }
         
         return { indices: sortedIndices, values: sortedValues };
     };
 
     /**
-     * 构建列的排序索引 - 使用基数排序优化
+     * 🚀 高性能字符串排序 - ArrayBuffer + 字符串池优化
      */
-    SimpleColumnarDB.prototype.buildSortedIndex = function(col) {
-        if (this.sortIndexValid[col]) {
-            return;
+    SimpleColumnarDB.prototype.fastStringSortWithIndices = function(col) {
+        var length = this.currentRows;
+        if (length <= 1) return { indices: [0], values: [this.columns[col][0]] };
+        
+        // 步骤1: 建立字符串池的排序映射
+        var stringPool = this.stringPools[col];
+        var stringPoolSize = this.nextStringIds[col];
+        
+        // 创建字符串值到排序位置的映射
+        var sortedStringIndices = [];
+        for (var i = 0; i < stringPoolSize; i++) {
+            sortedStringIndices.push({
+                originalIndex: i,
+                value: stringPool[i],
+                sortKey: String(stringPool[i]).toLowerCase() // 用于排序的键
+            });
         }
         
-        var startTime = performance.now();
+        // 对字符串池排序
+        sortedStringIndices.sort(function(a, b) {
+            return a.sortKey.localeCompare(b.sortKey);
+        });
         
-        // 使用高性能基数排序
-        var result = this.radixSortWithIndices(col);
+        // 建立原始索引到排序位置的映射
+        var indexMapping = new Array(stringPoolSize);
+        for (var i = 0; i < sortedStringIndices.length; i++) {
+            indexMapping[sortedStringIndices[i].originalIndex] = i;
+        }
         
-        this.sortedIndices[col] = result.indices;
-        this.sortedValues[col] = result.values;
-        this.sortIndexValid[col] = true;
+        // 步骤2: 创建(排序后的编码值, 行索引)对，直接在ArrayBuffer上操作
+        var sortPairs = new Array(length);
+        var column = this.columns[col]; // 直接访问Uint32Array
         
-        var endTime = performance.now();
-        console.log('列' + col + '基数排序完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
+        for (var i = 0; i < length; i++) {
+            var originalEncodedValue = column[i];
+            var mappedValue = indexMapping[originalEncodedValue] || 0;
+            // 将映射后的值和行索引打包到一个uint32中
+            sortPairs[i] = (mappedValue << 12) | i; // 高20位存映射值，低12位存行索引
+        }
+        
+        // 步骤3: 对打包后的数组进行基数排序
+        var temp = new Uint32Array(length);
+        var count = new Array(256);
+        
+        // 4轮基数排序
+        for (var shift = 0; shift < 32; shift += 8) {
+            count.fill(0);
+            
+            // 计数
+            for (var i = 0; i < length; i++) {
+                var digit = (sortPairs[i] >> shift) & 0xFF;
+                count[digit]++;
+            }
+            
+            // 累积
+            for (var i = 1; i < 256; i++) {
+                count[i] += count[i - 1];
+            }
+            
+            // 分配
+            for (var i = length - 1; i >= 0; i--) {
+                var digit = (sortPairs[i] >> shift) & 0xFF;
+                temp[--count[digit]] = sortPairs[i];
+            }
+            
+            // 交换
+            var swap = sortPairs;
+            sortPairs = temp;
+            temp = swap;
+        }
+        
+        // 步骤4: 提取排序结果
+        var sortedIndices = new Array(length);
+        var sortedValues = new Array(length);
+        
+        for (var i = 0; i < length; i++) {
+            var packed = sortPairs[i];
+            var rowIndex = packed & 0xFFF; // 低12位是行索引
+            sortedIndices[i] = rowIndex;
+            sortedValues[i] = column[rowIndex]; // 原始编码值
+        }
+        
+        return { indices: sortedIndices, values: sortedValues };
+    };
+
+
+    /**
+     * 通用排序（混合数据类型）
+     */
+    SimpleColumnarDB.prototype.generalSortWithIndices = function(col) {
+        var length = this.currentRows;
+        if (length <= 1) return { indices: [0], values: [this.columns[col][0]] };
+        
+        // 创建 (解码后的值, 行索引) 对
+        var sortPairs = [];
+        for (var i = 0; i < length; i++) {
+            var decodedValue = this.decode(this.columns[col][i], col);
+            sortPairs.push({
+                value: decodedValue,
+                originalIndex: i,
+                encodedValue: this.columns[col][i]
+            });
+        }
+        
+        // 智能排序：数字 < 字符串
+        sortPairs.sort(function(a, b) {
+            var valueA = a.value;
+            var valueB = b.value;
+            var numA = Number(valueA);
+            var numB = Number(valueB);
+            var isNumA = !isNaN(numA);
+            var isNumB = !isNaN(numB);
+            
+            if (isNumA && isNumB) {
+                return numA - numB; // 都是数字，按数值排序
+            } else if (isNumA && !isNumB) {
+                return -1; // 数字排在字符串前面
+            } else if (!isNumA && isNumB) {
+                return 1; // 字符串排在数字后面
+            } else {
+                // 都是字符串，按字母排序
+                return String(valueA).toLowerCase().localeCompare(String(valueB).toLowerCase());
+            }
+        });
+        
+        // 提取排序后的索引和编码值
+        var sortedIndices = new Array(length);
+        var sortedValues = new Array(length);
+        
+        for (var i = 0; i < length; i++) {
+            sortedIndices[i] = sortPairs[i].originalIndex;
+            sortedValues[i] = sortPairs[i].encodedValue;
+        }
+        
+        return { indices: sortedIndices, values: sortedValues };
     };
 
     /**
@@ -507,29 +976,57 @@
     };
 
     /**
-     * 按列排序 - 修改显示索引数组
+     * 🎯 按列排序 - 核心视图操作
+     * 直接修改 displayIndices 数组，实现虚拟表格排序
+     * @param {number} col 要排序的列
+     * @param {boolean} ascending 是否升序
      */
     SimpleColumnarDB.prototype.sortByColumn = function(col, ascending) {
         if (ascending === undefined) ascending = true;
         
-        // 构建排序索引
-        this.buildSortedIndex(col);
+        var startTime = performance.now();
+        console.log('🎯 开始按列' + col + '排序 (方向: ' + (ascending ? '升序' : '降序') + ')...');
+        console.log('   存储层数据:', this.totalRows + '行');
+        console.log('   当前视图:', this.visibleRows + '行');
         
-        var sortedIndices = this.sortedIndices[col];
+        // 🚀 生成基于存储层的排序索引
+        var sortedRowIndices = this.generateSortedIndices(col);
         
         if (ascending) {
             // 升序：直接使用排序索引
-            for (var i = 0; i < this.currentRows; i++) {
-                this.displayIndices[i] = sortedIndices[i];
+            for (var i = 0; i < this.totalRows; i++) {
+                this.displayIndices[i] = sortedRowIndices[i];
             }
         } else {
             // 降序：反向使用排序索引
-            for (var i = 0; i < this.currentRows; i++) {
-                this.displayIndices[i] = sortedIndices[this.currentRows - 1 - i];
+            for (var i = 0; i < this.totalRows; i++) {
+                this.displayIndices[i] = sortedRowIndices[this.totalRows - 1 - i];
             }
         }
         
-        this.visibleRows = this.currentRows;
+        // 🔸 视图显示全部存储数据（排序后通常要看全部结果）
+        this.visibleRows = this.totalRows;
+        
+        // 记录排序状态
+        this.lastSortColumn = col;
+        this.lastSortAscending = ascending;
+        
+        // 特别调试第一列
+        if (col === 0) {
+            console.log('🔴 设置第一列排序状态:');
+            console.log('   this.lastSortColumn:', this.lastSortColumn, typeof this.lastSortColumn);
+            console.log('   this.lastSortAscending:', this.lastSortAscending, typeof this.lastSortAscending);
+        }
+        
+        var endTime = performance.now();
+        console.log('列' + col + '排序完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
+        
+        return {
+            column: col,
+            ascending: ascending,
+            rowsAffected: this.currentRows,
+            sortTime: endTime - startTime
+        };
     };
 
     /**
@@ -559,13 +1056,37 @@
     };
 
     /**
-     * 重置显示索引为默认顺序
+     * 🔄 重置视图为原始顺序
+     * 将 displayIndices 重置为 [0, 1, 2, 3, ...] 自然序列
      */
     SimpleColumnarDB.prototype.resetDisplayOrder = function() {
-        for (var i = 0; i < this.currentRows; i++) {
+        console.log('🔄 重置视图为原始顺序...');
+        console.log('   存储层数据:', this.totalRows + '行');
+        
+        // 重置为自然顺序：0, 1, 2, 3, ...
+        for (var i = 0; i < this.totalRows; i++) {
             this.displayIndices[i] = i;
         }
-        this.visibleRows = this.currentRows;
+        this.visibleRows = this.totalRows;
+        
+        // 清除排序状态
+        this.lastSortColumn = undefined;
+        this.lastSortAscending = undefined;
+        
+        console.log('✅ 视图已重置为原始顺序');
+    };
+
+    /**
+     * 获取当前排序状态
+     */
+    SimpleColumnarDB.prototype.getSortStatus = function() {
+        var isSorted = (this.lastSortColumn !== undefined && this.lastSortColumn !== null && this.lastSortColumn >= 0);
+        
+        return {
+            column: this.lastSortColumn !== undefined ? this.lastSortColumn : -1,
+            ascending: this.lastSortAscending !== undefined ? this.lastSortAscending : true,
+            isSorted: isSorted
+        };
     };
 
     /**
@@ -750,17 +1271,42 @@
     };
 
     /**
-     * 清空所有数据
+     * 🧹 清空所有数据
      */
     SimpleColumnarDB.prototype.clear = function() {
+        console.log('🧹 清空数据库...');
+        
+        // 清空所有列数据
         for (var col = 0; col < this.maxCols; col++) {
-            this.columns[col].fill(0);
-            this.cacheValid[col] = false;
-            this.sortIndexValid[col] = false;
+            if (this.columns[col]) {
+                this.columns[col].fill(0);
+            }
         }
         
+        // 重置字符串池
+        for (var col = 0; col < this.maxCols; col++) {
+            if (this.stringPools[col] && this.stringMaps[col]) {
+                this.stringPools[col] = [''];  // 重置为只有空字符串
+                this.stringMaps[col] = {'': 0};
+                this.nextStringIds[col] = 1;
+            }
+        }
+        
+        // 重置计数器
+        this.totalRows = 0;
         this.currentRows = 0;
-        this.cachedCounts = {};
+        this.visibleRows = 0;
+        
+        // 重置视图为原始顺序
+        for (var i = 0; i < this.maxRows; i++) {
+            this.displayIndices[i] = i;
+        }
+        
+        // 清除排序状态
+        this.lastSortColumn = undefined;
+        this.lastSortAscending = undefined;
+        
+        console.log('✅ 数据库已清空');
     };
 
     /**

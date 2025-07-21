@@ -138,6 +138,13 @@
      */
     TableWidget.prototype.handleCanvasClick = function(e) {
         try {
+            // 首先检查是否点击了列头
+            var col = this.renderer.getColumnHeaderFromPixel(e.offsetX, e.offsetY);
+            if (col >= 0) {
+                this.handleColumnHeaderClick(col);
+                return;
+            }
+            
             var cellPos = this.pixelToCell(e.offsetX, e.offsetY);
             if (!cellPos) return;
             
@@ -145,6 +152,62 @@
             this.selectCell(cellPos.row, cellPos.col);
         } catch (error) {
             console.error('处理Canvas点击失败:', error);
+        }
+    };
+
+    /**
+     * 处理列头点击 - 三态排序功能
+     */
+    TableWidget.prototype.handleColumnHeaderClick = function(col) {
+        try {
+            console.log('📌 点击列头:', col);
+            
+            // 简化版本：直接从数据库获取原始状态
+            var db = this.tableCore.db;
+            var currentSortCol = db.lastSortColumn;
+            var currentSortAsc = db.lastSortAscending;
+            
+            console.log('📊 直接从 DB 获取状态:');
+            console.log('   db.lastSortColumn:', currentSortCol, typeof currentSortCol);
+            console.log('   db.lastSortAscending:', currentSortAsc, typeof currentSortAsc);
+            console.log('   点击的列:', col, typeof col);
+            
+            var nextAction;
+            
+            // 简化的三态逻辑
+            if (currentSortCol === col || currentSortCol == col) {
+                // 同一列，循环状态
+                if (currentSortAsc === true) {
+                    nextAction = 'sort_desc';
+                } else if (currentSortAsc === false) {
+                    nextAction = 'reset';
+                } else {
+                    nextAction = 'sort_asc'; // undefined 状态
+                }
+            } else {
+                // 不同列或无排序，开始升序
+                nextAction = 'sort_asc';
+            }
+            
+            console.log('🎯 下一步操作:', nextAction);
+            
+            // 执行操作
+            if (nextAction === 'reset') {
+                console.log('🔄 执行重置操作');
+                this.tableCore.resetSort();
+            } else {
+                var ascending = (nextAction === 'sort_asc');
+                console.log('🔊 执行排序操作:', ascending ? '升序' : '降序');
+                this.tableCore.sortByColumn(col, ascending);
+            }
+            
+            // 检查最终状态
+            console.log('🔍 最终状态:');
+            console.log('   db.lastSortColumn:', db.lastSortColumn);
+            console.log('   db.lastSortAscending:', db.lastSortAscending);
+            
+        } catch (error) {
+            console.error('处理列头点击失败:', error);
         }
     };
     

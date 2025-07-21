@@ -212,6 +212,9 @@
         TABLE_CLEARED: 'table:cleared',
         TABLE_REDRAWN: 'table:redrawn',
         TABLE_EDIT_REQUESTED: 'table:editRequested',
+        TABLE_SORTED: 'table:sorted',
+        TABLE_SORT_RESET: 'table:sortReset',
+        TABLE_COLUMN_HEADER_CLICKED: 'table:columnHeaderClicked',
         
         // 数据库事件
         DB_INITIALIZED: 'db:initialized',

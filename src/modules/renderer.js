@@ -72,7 +72,7 @@
         // 设置文本渲染属性
         this.ctx.textBaseline = 'middle';
         this.ctx.textAlign = 'left';
-        this.ctx.font = '14px monospace';
+        this.ctx.font = this.config.fontSize + 'px ' + this.config.fontFamily;
         this.ctx.fillStyle = '#000000';
         this.ctx.imageSmoothingEnabled = true;
     };
@@ -330,21 +330,29 @@
         var startRow = Math.floor((regionY + this.scrollY - this.config.headerHeight) / this.config.cellHeight);
         var endRow = Math.ceil((regionY + regionHeight + this.scrollY - this.config.headerHeight) / this.config.cellHeight);
         
-        // 绘制垂直网格线
+        // 绘制垂直网格线（避免在列头区域绘制）
         for (var col = Math.max(0, startCol); col <= endCol; col++) {
             var x = this.config.rowHeaderWidth + col * this.config.cellWidth - this.scrollX;
             if (x >= regionX && x <= regionX + regionWidth) {
-                this.ctx.moveTo(x, regionY);
-                this.ctx.lineTo(x, regionY + regionHeight);
+                // 🔧 垂直线从列头底部开始，不在列头区域绘制
+                var lineStartY = Math.max(regionY, this.config.headerHeight);
+                if (lineStartY < regionY + regionHeight) {
+                    this.ctx.moveTo(x, lineStartY);
+                    this.ctx.lineTo(x, regionY + regionHeight);
+                }
             }
         }
         
-        // 绘制水平网格线
+        // 绘制水平网格线（避免在列头区域绘制）
         for (var row = Math.max(0, startRow); row <= endRow; row++) {
             var y = this.config.headerHeight + row * this.config.cellHeight - this.scrollY;
             if (y >= regionY && y <= regionY + regionHeight) {
-                this.ctx.moveTo(regionX, y);
-                this.ctx.lineTo(regionX + regionWidth, y);
+                // 🔧 水平线从行头右侧开始，不在列头区域绘制
+                var lineStartX = Math.max(regionX, this.config.rowHeaderWidth);
+                if (lineStartX < regionX + regionWidth) {
+                    this.ctx.moveTo(lineStartX, y);
+                    this.ctx.lineTo(regionX + regionWidth, y);
+                }
             }
         }
         
@@ -401,7 +409,7 @@
         var canvasWidth = this.canvas.clientWidth;
         var canvasHeight = this.canvas.clientHeight;
         
-        // 绘制列标题背景
+        // 🎨 绘制列标题背景（简洁无边框设计）
         this.ctx.fillStyle = this.config.headerBg;
         this.ctx.fillRect(
             this.config.rowHeaderWidth,
@@ -421,23 +429,77 @@
         // 绘制左上角
         this.ctx.fillRect(0, 0, this.config.rowHeaderWidth, this.config.headerHeight);
         
-        // 绘制列标题文本
+        // 🎨 列头完全无边框设计 - 移除所有边框线
+        
+        // 获取排序状态
+        var sortStatus = null;
+        if (tableData && tableData.getSortStatus) {
+            sortStatus = tableData.getSortStatus();
+        }
+        
+        // 绘制列标题文本和排序指示器
         this.ctx.fillStyle = this.config.headerTextColor;
         this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';  // 确保垂直居中
         this.ctx.font = this.config.fontSize + 'px ' + this.config.fontFamily;
         
         for (var col = this.viewport.startCol; col <= this.viewport.endCol; col++) {
             var x = this.config.rowHeaderWidth + col * this.config.cellWidth - this.scrollX;
             
-            // 生成列标题（A, B, C...）
-            var colLabel = String.fromCharCode(65 + col);
-            
             if (x + this.config.cellWidth > this.config.rowHeaderWidth) {
+                // 生成列标题（A, B, C...）
+                var colLabel = String.fromCharCode(65 + col);
+                
+                // 绘制列标题文本（完美垂直居中）
                 this.ctx.fillText(
                     colLabel,
                     x + this.config.cellWidth / 2,
                     this.config.headerHeight / 2
                 );
+                
+                // 绘制排序指示器（使用松散比较兼容第0列）
+                if (sortStatus && sortStatus.isSorted && sortStatus.column == col) {
+                    // 🔧 调整位置：与 ↑↓ 符号保持一致的位置
+                    var arrowX = x + 8 + 5;  // 左侧位置，稍微右移5px居中符号
+                    var arrowY = this.config.headerHeight / 2;  // 垂直居中
+                    var arrowSize = 5;  // 稍微调小一点
+                    
+                    this.ctx.fillStyle = '#007bff';
+                    this.ctx.beginPath();
+                    
+                    if (sortStatus.ascending) {
+                        // 向上箭头 (升序) ▲ - 调整为更紧凑的三角形
+                        this.ctx.moveTo(arrowX, arrowY - arrowSize + 1);
+                        this.ctx.lineTo(arrowX - arrowSize, arrowY + arrowSize - 1);
+                        this.ctx.lineTo(arrowX + arrowSize, arrowY + arrowSize - 1);
+                    } else {
+                        // 向下箭头 (降序) ▼ - 调整为更紧凑的三角形
+                        this.ctx.moveTo(arrowX, arrowY + arrowSize - 1);
+                        this.ctx.lineTo(arrowX - arrowSize, arrowY - arrowSize + 1);
+                        this.ctx.lineTo(arrowX + arrowSize, arrowY - arrowSize + 1);
+                    }
+                    
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                    
+                    // 恢复文本颜色
+                    this.ctx.fillStyle = this.config.headerTextColor;
+                } else {
+                    // 无排序状态时，显示淡灰色的可点击提示（左侧）
+                    var hintX = x + 8;  // 移到左侧，距离左边缘8px
+                    var hintY = this.config.headerHeight / 2;
+                    
+                    this.ctx.fillStyle = '#cccccc';
+                    this.ctx.font = '10px ' + this.config.fontFamily;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('⇅', hintX, hintY);
+                    
+                    // 恢复文本样式
+                    this.ctx.fillStyle = this.config.headerTextColor;
+                    this.ctx.font = this.config.fontSize + 'px ' + this.config.fontFamily;
+                }
+                
+                // 🚫 完全移除列头边框 - 保持纯净无边框设计
             }
         }
         
@@ -478,20 +540,20 @@
         
         for (var row = this.viewport.startRow; row <= this.viewport.endRow; row++) {
             for (var col = this.viewport.startCol; col <= this.viewport.endCol; col++) {
-                // 🔧 修复: 优先使用tableCore，确保数据获取的一致性
+                // 🔧 修复: 使用getDisplayValue获取排序后的数据
                 var cellValue = '';
                 
-                // 优先使用tableCore.getCellValue（最可靠）
-                if (this.tableCore && this.tableCore.getCellValue) {
+                // 优先使用列式数据库的getDisplayValue（支持排序）
+                if (tableData && tableData.getDisplayValue) {
+                    cellValue = tableData.getDisplayValue(row, col);
+                }
+                // 备用：通过tableCore获取
+                else if (this.tableCore && this.tableCore.getCellValue) {
                     cellValue = this.tableCore.getCellValue(row, col);
                 }
-                // 备用：直接从tableCore.db获取
+                // 最后尝试从tableCore.db获取
                 else if (this.tableCore && this.tableCore.db && this.tableCore.db.getValue) {
                     cellValue = this.tableCore.db.getValue(row, col);
-                }
-                // 最后尝试从tableData获取
-                else if (tableData && tableData.getValue) {
-                    cellValue = tableData.getValue(row, col);
                 }
                 
                 // 调试：输出数据获取过程（扩展到20行）
@@ -712,12 +774,14 @@
         var canvasWidth = this.canvas.clientWidth;
         var canvasHeight = this.canvas.clientHeight;
         
-        // 绘制垂直线
+        // 🚫 完全跳过列头区域的垂直线绘制
+        // 垂直线只在数据区域绘制，列头区域保持完全无边框
         for (var col = this.viewport.startCol; col <= this.viewport.endCol + 1; col++) {
             var x = this.config.rowHeaderWidth + col * this.config.cellWidth - this.scrollX;
             
             if (x >= this.config.rowHeaderWidth && x <= canvasWidth) {
                 this.ctx.beginPath();
+                // ✅ 只在数据区域绘制垂直线，完全跳过列头区域
                 this.ctx.moveTo(x, this.config.headerHeight);
                 this.ctx.lineTo(x, canvasHeight);
                 this.ctx.stroke();
@@ -815,6 +879,40 @@
         var row = Math.floor((adjustedY - this.config.headerHeight) / this.config.cellHeight);
         
         return { row: row, col: col };
+    };
+
+    /**
+     * 检查点击是否在列头区域，返回列索引
+     */
+    TableRenderer.prototype.getColumnHeaderFromPixel = function(x, y) {
+        console.log('🔍 检查列头点击位置:', { x: x, y: y, rowHeaderWidth: this.config.rowHeaderWidth, headerHeight: this.config.headerHeight });
+        
+        // 检查是否在列头区域（Y轴）
+        if (y < 0 || y >= this.config.headerHeight) {
+            console.log('❌ Y轴超出范围');
+            return -1;
+        }
+        
+        // 检查是否在列区域（X轴）
+        if (x < this.config.rowHeaderWidth) {
+            console.log('❌ X轴在行头区域内');
+            return -1;
+        }
+        
+        // 计算列索引
+        var adjustedX = x + this.scrollX;
+        var col = Math.floor((adjustedX - this.config.rowHeaderWidth) / this.config.cellWidth);
+        
+        console.log('🧮 计算结果:', { adjustedX: adjustedX, col: col, scrollX: this.scrollX, cellWidth: this.config.cellWidth });
+        
+        // 确保列索引有效
+        if (col >= 0 && col < 100) { // 最大100列
+            console.log('✅ 返回列索引:', col);
+            return col;
+        }
+        
+        console.log('❌ 列索引无效');
+        return -1;
     };
 
     TableRenderer.prototype.getCellRect = function(row, col) {

@@ -132,6 +132,64 @@
     };
 
     /**
+     * 按列排序
+     */
+    SimpleTableCore.prototype.sortByColumn = function(col, ascending) {
+        if (col < 0 || col >= this.db.maxCols) {
+            console.warn('无效的列索引:', col);
+            return;
+        }
+        
+        // 执行排序
+        var result = this.db.sortByColumn(col, ascending);
+        
+        // 触发事件
+        this.eventManager.emit(global.EVENTS.TABLE_SORTED, {
+            column: col,
+            ascending: ascending,
+            rowsAffected: result.rowsAffected,
+            sortTime: result.sortTime
+        });
+        
+        // 重新渲染
+        this.render();
+        
+        // 更新状态信息
+        var colChar = String.fromCharCode(65 + col);
+        var direction = ascending ? '升序' : '降序';
+        if (typeof updateStatus === 'function') {
+            updateStatus('按' + colChar + '列' + direction + '排序完成', 'success');
+        }
+        
+        return result;
+    };
+
+    /**
+     * 重置排序
+     */
+    SimpleTableCore.prototype.resetSort = function() {
+        this.db.resetDisplayOrder();
+        
+        this.eventManager.emit(global.EVENTS.TABLE_SORT_RESET, {
+            timestamp: Date.now()
+        });
+        
+        this.render();
+        
+        // 更新状态信息
+        if (typeof updateStatus === 'function') {
+            updateStatus('已恢复原始顺序', 'success');
+        }
+    };
+
+    /**
+     * 获取排序状态
+     */
+    SimpleTableCore.prototype.getSortStatus = function() {
+        return this.db.getSortStatus();
+    };
+
+    /**
      * 清空单元格
      */
     SimpleTableCore.prototype.clearCell = function() {
@@ -176,10 +234,25 @@
     };
 
     /**
-     * 获取单元格值
+     * 🔹 获取单元格值（视图层）
+     * 用于表格渲染显示，会考虑排序等视图状态
+     * @param {number} viewRow 视图中的行号
+     * @param {number} col 列号
      */
-    SimpleTableCore.prototype.getCellValue = function(row, col) {
-        var value = this.db.getValue(row, col);
+    SimpleTableCore.prototype.getCellValue = function(viewRow, col) {
+        // 使用getDisplayValue获取视图数据（支持排序）
+        var value = this.db.getDisplayValue(viewRow, col);
+        return value === null || value === undefined ? '' : value;
+    };
+    
+    /**
+     * 🔹 获取存储层单元格值（存储层）  
+     * 用于数据编辑，直接访问存储数据
+     * @param {number} actualRow 存储层的实际行号
+     * @param {number} col 列号
+     */
+    SimpleTableCore.prototype.getStorageCellValue = function(actualRow, col) {
+        var value = this.db.getValue(actualRow, col);
         return value === null || value === undefined ? '' : value;
     };
 

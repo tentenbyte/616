@@ -8,9 +8,9 @@
     var DEFAULT_TABLE_CONFIG = {
         cellWidth: 120,
         cellHeight: 30,
-        headerHeight: 35,
+        headerHeight: 33,
         rowHeaderWidth: 50,
-        fontSize: 14,
+        fontSize: 13,
         fontFamily: 'Cascadia Code, monospace',
         cellBg: '#ffffff',              // 单元格背景色（白色）
         borderColor: '#cccccc',         // 网格线颜色（浅灰色）
