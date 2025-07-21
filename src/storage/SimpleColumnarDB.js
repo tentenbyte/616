@@ -12,48 +12,26 @@
      * @param {number} maxCols 最大列数
      */
     function SimpleColumnarDB(maxRows, maxCols) {
-        console.log('🏗️ SimpleColumnarDB构造函数:', {maxRows: maxRows, maxCols: maxCols});
-        
         // 核心：每列是真正独立的ArrayBuffer + Uint32Array
         this.buffers = [];
         this.columns = [];
         
-        console.log('📊 开始创建' + maxCols + '个列...');
         for (var i = 0; i < maxCols; i++) {
-            try {
-                // 强制每列使用独立的ArrayBuffer
-                this.buffers[i] = new ArrayBuffer(maxRows * 4);
-                this.columns[i] = new Uint32Array(this.buffers[i]);
-                if (i < 3) { // 只记录前3列
-                    console.log('  列' + i + '创建成功, 长度:', this.columns[i].length);
-                }
-            } catch (error) {
-                console.error('❌ 创建列' + i + '失败:', error);
-                throw error;
-            }
+            // 强制每列使用独立的ArrayBuffer
+            this.buffers[i] = new ArrayBuffer(maxRows * 4);
+            this.columns[i] = new Uint32Array(this.buffers[i]);
         }
-        console.log('✅ 所有列创建完成');
         
         // 每列独立的字符串池
         this.stringPools = [];
         this.stringMaps = [];
         this.nextStringIds = [];
         
-        console.log('🗃️ 开始创建字符串池...');
         for (var i = 0; i < maxCols; i++) {
-            try {
-                this.stringPools[i] = [''];  // 索引0保留给null
-                this.stringMaps[i] = {'': 0};
-                this.nextStringIds[i] = 1;
-                if (i < 3) { // 只记录前3列
-                    console.log('  列' + i + '字符串池创建成功');
-                }
-            } catch (error) {
-                console.error('❌ 创建列' + i + '字符串池失败:', error);
-                throw error;
-            }
+            this.stringPools[i] = [''];  // 索引0保留给null
+            this.stringMaps[i] = {'': 0};
+            this.nextStringIds[i] = 1;
         }
-        console.log('✅ 所有字符串池创建完成');
         
         // 基本信息
         this.maxRows = maxRows;
@@ -129,7 +107,6 @@
             }
         }
         
-        console.log('🏷️ 业务列名初始化完成:', this.columnNames.slice(0, Math.min(8, maxCols)));
     };
     
     /**

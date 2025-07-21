@@ -416,32 +416,14 @@
      * 保存当前值
      */
     EditWidget.prototype.saveCurrentValue = function() {
-        if (!this.state.globalInput || !this.tableCore) {
-            console.error('🔧 调试: saveCurrentValue失败 - 缺少必要组件', {
-                hasGlobalInput: !!this.state.globalInput,
-                hasTableCore: !!this.tableCore
-            });
-            return;
-        }
+        if (!this.state.globalInput || !this.tableCore) return;
         
         var value = this.state.globalInput.value;
         var row = this.state.currentCell.row;
         var col = this.state.currentCell.col;
         
-        console.log('🔧 调试: saveCurrentValue被调用', {
-            value: value,
-            row: row,
-            col: col,
-            valueLength: value ? value.length : 0,
-            valueType: typeof value
-        });
-        
         if (row >= 0 && col >= 0) {
-            console.log('🔧 调试: 准备调用tableCore.setCellValue');
             this.tableCore.setCellValue(row, col, value);
-            console.log('🔧 调试: tableCore.setCellValue已调用完成');
-        } else {
-            console.error('🔧 调试: 无效的行列索引', { row: row, col: col });
         }
     };
     
@@ -534,7 +516,6 @@
         } else if (col === 6 && global.CalendarWidget) {
             this.showCalendar(cellX, cellY);
         } else if (col === 7 && global.StringSelectorWidget) {
-            console.log('🔧 调试: 准备显示字符串选择器，列索引:', col);
             this.showStringSelector(cellX, cellY);
         }
     };
@@ -593,23 +574,17 @@
      */
     EditWidget.prototype.showStringSelector = function(cellX, cellY) {
         try {
-            console.log('🔧 调试: showStringSelector被调用，位置:', { cellX: cellX, cellY: cellY });
-            
             if (!this.helpers.stringSelector) {
                 var stringOptions = ['北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '武汉', '西安', '重庆'];
                 var self = this;
                 
-                console.log('🔧 调试: 创建新的StringSelectorWidget实例');
                 this.helpers.stringSelector = new global.StringSelectorWidget('table-container', stringOptions, function(selectedString) {
-                    console.log('🔧 调试: 字符串选择器回调被触发，选中值:', selectedString);
                     self.handleHelperInput('string', selectedString);
                 });
             }
             
-            console.log('🔧 调试: 移动和显示字符串选择器');
             this.helpers.stringSelector.moveStringSelector(cellX - 20, cellY + 10);
             this.helpers.stringSelector.show();
-            console.log('🔧 调试: 字符串选择器应该已显示');
         } catch (error) {
             console.error('显示字符串选择器失败:', error);
         }
@@ -619,29 +594,17 @@
      * 处理辅助控件输入
      */
     EditWidget.prototype.handleHelperInput = function(type, value) {
-        console.log('🔧 调试: handleHelperInput被调用', { type: type, value: value });
-        
-        if (!this.state.globalInput) {
-            console.error('🔧 调试: globalInput不存在！');
-            return;
-        }
+        if (!this.state.globalInput) return;
         
         var formattedValue = this.formatHelperValue(type, value, this.state.globalInput.value);
-        console.log('🔧 调试: 格式化后的值:', formattedValue);
-        
         this.state.globalInput.value = formattedValue;
         this.state.globalInput.style.caretColor = '#2c3e50';
         this.state.globalInput.dataset.isFirstClick = 'false';
         this.state.globalInput.focus();
         
-        console.log('🔧 调试: 输入框值已更新为:', this.state.globalInput.value);
-        
-        // 🔧 修复: 立即保存当前值，而不是等待用户手动保存
-        console.log('🔧 调试: 立即触发保存当前值');
+        // 立即保存当前值
         this.saveCurrentValue();
-        
         this.hideAllHelpers();
-        console.log('🔧 调试: 辅助控件已隐藏，保存已完成');
     };
     
     /**
