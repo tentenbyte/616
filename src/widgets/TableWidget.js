@@ -33,7 +33,8 @@
         // 渲染器
         this.renderer = new global.TableRenderer(canvas, config.getTableConfig(), {
             eventManager: this.eventManager,
-            tableCore: this.tableCore
+            tableCore: this.tableCore,
+            database: this.tableCore ? this.tableCore.db : null
         });
         
         // 交互状态
