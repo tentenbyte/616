@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列式表格编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- 基础依赖 -->
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/core/eventManager.js"></script>
+    <script src="src/core/config.js"></script>
+    
+    <!-- 列式数据库 -->
+    <script src="src/storage/SimpleColumnarDB.js"></script>
+    
+    <!-- UI控件 -->
+    <script src="src/widgets/NumberPad.js"></script>
+    <script src="src/widgets/Calendar.js"></script>
+    <script src="src/widgets/StringSelector.js"></script>
+    <script src="src/widgets/TableWidget.js"></script>
+    
+    <!-- 核心模块 -->
+    <script src="src/modules/renderer.js"></script>
+    <script src="src/modules/database.js"></script>
+    <script src="src/modules/SimpleTableCore.js"></script>
+    
+</head>
+<body>
+    <!-- 表格容器 -->
+    <div class="table-container" id="table-container">
+        <canvas id="tableCanvas" tabindex="0"></canvas>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div class="footer">
+        <div class="status">
+            <span id="status-text">正在加载...</span>
+        </div>
+        <div class="info">
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化</span>
+        </div>
+    </div>
+
+    <!-- 应用启动脚本 -->
+    <script>
+        (function() {
+            'use strict';
+            
+            var app = { tableCore: null };
+            window.app = app;
+            
+            var statusText = document.getElementById('status-text');
+            var infoText = document.getElementById('info-text');
+            
+            // 更新状态信息
+            function updateStatus(message, type) {
+                if (statusText) {
+                    statusText.textContent = message;
+                    statusText.style.color = type === 'error' ? '#e74c3c' : 
+                                           type === 'success' ? '#27ae60' : 'white';
+                }
+            }
+            
+            function updateInfo(message) {
+                if (infoText) {
+                    infoText.textContent = message;
+                }
+            }
+            
+            // 初始化Canvas
+            function initializeCanvas() {
+                var canvas = document.getElementById('tableCanvas');
+                var container = document.getElementById('table-container');
+                
+                if (!canvas || !container) {
+                    throw new Error('找不到Canvas或容器元素');
+                }
+                
+                var rect = container.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                
+                return canvas;
+            }
+            
+            // 启动应用
+            function startApp() {
+                try {
+                    updateStatus('正在检查模块...');
+                    
+                    // 检查必需模块
+                    if (!window.Config) throw new Error('Config模块未加载');
+                    if (!window.SimpleTableCore) throw new Error('SimpleTableCore模块未加载');
+                    if (!window.SimpleColumnarDB) throw new Error('SimpleColumnarDB模块未加载');
+                    
+                    updateStatus('正在初始化Canvas...');
+                    var canvas = initializeCanvas();
+                    
+                    updateStatus('正在创建配置...');
+                    var config = new window.Config();
+                    
+                    updateStatus('正在创建表格核心...');
+                    app.tableCore = new window.SimpleTableCore(canvas, config);
+                    
+                    updateStatus('正在初始化应用...');
+                    
+                    app.tableCore.initialize()
+                        .then(function() {
+                            updateStatus('应用初始化成功', 'success');
+                            
+                            // 延迟添加示例数据（如果IndexedDB为空）
+                            setTimeout(function() {
+                                addSampleDataIfNeeded();
+                            }, 500);
+                            
+                            showInitialEdit();
+                            updateStatus('应用就绪，双击单元格开始编辑', 'success');
+                            showStats();
+                            enableAutoSave();
+                        })
+                        .catch(function(error) {
+                            console.error('初始化失败:', error);
+                            updateStatus('初始化失败: ' + error.message, 'error');
+                        });
+                        
+                } catch (error) {
+                    console.error('启动失败:', error);
+                    updateStatus('启动失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 添加示例数据（仅当数据库为空时）
+            function addSampleDataIfNeeded() {
+                if (!app.tableCore || app.tableCore.db.currentRows > 0) {
+                    return;
+                }
+                
+                try {
+                    // 清空并添加20行示例数据
+                    app.tableCore.db.clear();
+                    
+                    var sampleData = [
+                        ['张三', '28', '北京', '工程师', '15000', '123.45', '2024-01-15', '北京'],
+                        ['李四', '32', '上海', '设计师', '12000', '999.99', '2024-02-20', '杭州'],
+                        ['王五', '25', '广州', '产品经理', '18000', '678.90', '2024-03-10', '深圳'],
+                        ['赵六', '29', '深圳', '前端开发', '16000', '456.78', '2024-04-15', '广州'],
+                        ['孙七', '35', '杭州', '后端开发', '20000', '1234.56', '2024-05-22', '杭州'],
+                        ['周八', '27', '南京', '运维工程师', '14000', '789.01', '2024-06-08', '南京'],
+                        ['吴九', '31', '成都', '数据分析师', '17000', '567.89', '2024-07-12', '成都'],
+                        ['郑十', '26', '武汉', 'UI设计师', '13000', '345.67', '2024-08-18', '武汉'],
+                        ['冯十一', '33', '西安', '项目经理', '22000', '2345.67', '2024-09-25', '西安'],
+                        ['陈十二', '24', '重庆', '测试工程师', '11000', '234.56', '2024-10-30', '重庆'],
+                        ['褚十三', '30', '天津', '架构师', '28000', '3456.78', '2024-11-05', '天津'],
+                        ['卫十四', '28', '青岛', '算法工程师', '25000', '2567.89', '2024-12-12', '青岛'],
+                        ['蒋十五', '32', '大连', '技术总监', '35000', '4567.89', '2025-01-08', '大连'],
+                        ['沈十六', '26', '厦门', '移动开发', '19000', '1345.67', '2025-02-14', '厦门'],
+                        ['韩十七', '29', '合肥', '全栈开发', '21000', '1789.01', '2025-03-20', '合肥'],
+                        ['杨十八', '34', '长沙', '安全工程师', '23000', '1987.65', '2025-04-25', '长沙'],
+                        ['朱十九', '27', '郑州', '运营专员', '12000', '456.78', '2025-05-30', '郑州'],
+                        ['秦二十', '31', '石家庄', '人事经理', '18000', '987.65', '2025-06-15', '石家庄'],
+                        ['尤二一', '25', '太原', '市场专员', '10000', '234.56', '2025-07-20', '太原'],
+                        ['许二二', '36', '福州', '财务经理', '26000', '3210.98', '2025-08-28', '福州']
+                    ];
+                    
+                    // 批量添加数据
+                    for (var row = 0; row < sampleData.length; row++) {
+                        for (var col = 0; col < sampleData[row].length; col++) {
+                            app.tableCore.setCellValue(row, col, sampleData[row][col]);
+                        }
+                    }
+                    
+                    // 强制更新数据库状态
+                    app.tableCore.db.currentRows = 20;
+                    app.tableCore.db.visibleRows = 20;
+                    app.tableCore.state.isDirty = true;
+                    
+                    app.tableCore.render();
+                    showStats();
+                    
+                    updateStatus('已加载20行示例数据', 'success');
+                    
+                } catch (error) {
+                    console.error('加载示例数据失败:', error);
+                    updateStatus('加载示例数据失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 显示统计信息
+            function showStats() {
+                if (app.tableCore && app.tableCore.db) {
+                    try {
+                        var currentRows = app.tableCore.db.currentRows || 0;
+                        var maxRows = app.tableCore.db.maxRows || 100;
+                        var maxCols = app.tableCore.db.maxCols || 26;
+                        updateInfo('列式存储: ' + currentRows + '/' + maxRows + '行 ' + maxCols + '列');
+                    } catch (error) {
+                        updateInfo('列式内存数据库 + Canvas渲染');
+                    }
+                }
+            }
+            
+            // 显示编辑框
+            function showInitialEdit() {
+                try {
+                    var existingInput = document.getElementById('edit-global-input');
+                    if (existingInput) {
+                        existingInput.parentNode.removeChild(existingInput);
+                    }
+                    
+                    var globalInput = document.createElement('input');
+                    globalInput.type = 'text';
+                    globalInput.id = 'edit-global-input';
+                    globalInput.value = app.tableCore.getCellValue(0, 0) || '';
+                    
+                    // 设置样式
+                    globalInput.className = 'global-edit-input';
+                    
+                    // 计算位置
+                    var canvas = document.getElementById('tableCanvas');
+                    var canvasRect = canvas.getBoundingClientRect();
+                    var x = canvasRect.left + 50;
+                    var y = canvasRect.top + 35 - 1;
+                    
+                    globalInput.style.left = x + 'px';
+                    globalInput.style.top = y + 'px';
+                    
+                    document.body.appendChild(globalInput);
+                    
+                    // 设置焦点和光标
+                    setTimeout(function() {
+                        globalInput.focus();
+                        var textLength = globalInput.value.length;
+                        globalInput.setSelectionRange(textLength, textLength);
+                        globalInput.style.caretColor = 'transparent';
+                        globalInput.dataset.isFirstClick = 'true';
+                    }, 100);
+                    
+                    setupEditMovement(globalInput);
+                    setupEditInteraction(globalInput);
+                    
+                } catch (error) {
+                    console.error('显示编辑框失败:', error);
+                }
+            }
+            
+            // 设置编辑框移动
+            function setupEditMovement(globalInput) {
+                var canvas = document.getElementById('tableCanvas');
+                if (!canvas) return;
+                
+                canvas.addEventListener('click', function(e) {
+                    try {
+                        var canvasRect = canvas.getBoundingClientRect();
+                        var clickX = e.clientX - canvasRect.left;
+                        var clickY = e.clientY - canvasRect.top;
+                        
+                        var rowHeaderWidth = 50;
+                        var headerHeight = 35;
+                        var cellWidth = 120;
+                        var cellHeight = 30;
+                        
+                        if (clickX < rowHeaderWidth || clickY < headerHeight) {
+                            return;
+                        }
+                        
+                        var col = Math.floor((clickX - rowHeaderWidth) / cellWidth);
+                        var row = Math.floor((clickY - headerHeight) / cellHeight);
+                        
+                        var newX = canvasRect.left + rowHeaderWidth + col * cellWidth;
+                        var newY = canvasRect.top + headerHeight + row * cellHeight - 1;
+                        
+                        globalInput.style.left = newX + 'px';
+                        globalInput.style.top = newY + 'px';
+                        
+                        var cellValue = '';
+                        if (app.tableCore && app.tableCore.getCellValue) {
+                            cellValue = app.tableCore.getCellValue(row, col) || '';
+                        }
+                        globalInput.value = cellValue;
+                        
+                        globalInput.focus();
+                        var textLength = globalInput.value.length;
+                        globalInput.setSelectionRange(textLength, textLength);
+                        globalInput.style.caretColor = 'transparent';
+                        globalInput.dataset.isFirstClick = 'true';
+                        
+                        showHelperForColumn(col, newX, newY);
+                        
+                    } catch (error) {
+                        console.error('移动编辑框失败:', error);
+                    }
+                });
+            }
+            
+            // 设置编辑框交互
+            function setupEditInteraction(globalInput) {
+                function showCursor() {
+                    if (globalInput.dataset.isFirstClick === 'true') {
+                        globalInput.style.caretColor = '#2c3e50';
+                        globalInput.dataset.isFirstClick = 'false';
+                    }
+                }
+                
+                globalInput.addEventListener('keydown', showCursor);
+                globalInput.addEventListener('input', showCursor);
+                globalInput.addEventListener('mousedown', function(e) {
+                    setTimeout(function() {
+                        var cursorPos = globalInput.selectionStart;
+                        var textLength = globalInput.value.length;
+                        if (cursorPos !== textLength) {
+                            showCursor();
+                        }
+                    }, 10);
+                });
+            }
+            
+            // 显示列专用控件
+            function showHelperForColumn(col, cellX, cellY) {
+                hideAllHelpers();
+                
+                if (col === 5 && window.NumberPadWidget) {
+                    showNumberPad(cellX, cellY);
+                } else if (col === 6 && window.CalendarWidget) {
+                    showCalendar(cellX, cellY);
+                } else if (col === 7 && window.StringSelectorWidget) {
+                    showStringSelector(cellX, cellY);
+                }
+            }
+            
+            function hideAllHelpers() {
+                try {
+                    if (window.globalNumberPad) window.globalNumberPad.hide();
+                    if (window.globalCalendar) window.globalCalendar.hide();
+                    if (window.globalStringSelector) window.globalStringSelector.hide();
+                } catch (error) {
+                    console.error('隐藏辅助控件失败:', error);
+                }
+            }
+            
+            function showNumberPad(cellX, cellY) {
+                try {
+                    if (!window.globalNumberPad) {
+                        window.globalNumberPad = new window.NumberPadWidget('table-container', function(value) {
+                            handleHelperInput('number', value);
+                        });
+                    }
+                    window.globalNumberPad.moveNumPad(cellX - 20, cellY + 10);
+                    window.globalNumberPad.show();
+                } catch (error) {
+                    console.error('显示数字键盘失败:', error);
+                }
+            }
+            
+            function showCalendar(cellX, cellY) {
+                try {
+                    if (!window.globalCalendar) {
+                        window.globalCalendar = new window.CalendarWidget('table-container', function(days) {
+                            handleHelperInput('date', days);
+                        });
+                    }
+                    window.globalCalendar.moveCalendar(cellX - 20, cellY + 10);
+                    window.globalCalendar.show();
+                } catch (error) {
+                    console.error('显示日历失败:', error);
+                }
+            }
+            
+            function showStringSelector(cellX, cellY) {
+                try {
+                    if (!window.globalStringSelector) {
+                        var stringOptions = ['北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '武汉', '西安', '重庆'];
+                        window.globalStringSelector = new window.StringSelectorWidget('table-container', stringOptions, function(selectedString) {
+                            handleHelperInput('string', selectedString);
+                        });
+                    }
+                    window.globalStringSelector.moveStringSelector(cellX - 20, cellY + 10);
+                    window.globalStringSelector.show();
+                } catch (error) {
+                    console.error('显示字符串选择器失败:', error);
+                }
+            }
+            
+            // 处理辅助控件输入
+            function handleHelperInput(type, value) {
+                var globalInput = document.getElementById('edit-global-input');
+                if (!globalInput) return;
+                
+                var formattedValue = formatHelperValue(type, value, globalInput.value);
+                globalInput.value = formattedValue;
+                globalInput.style.caretColor = '#2c3e50';
+                globalInput.dataset.isFirstClick = 'false';
+                globalInput.focus();
+                hideAllHelpers();
+            }
+            
+            function formatHelperValue(type, value, currentValue) {
+                switch (type) {
+                    case 'number':
+                        if (value === 'C') return '';
+                        if (value === '←') return currentValue.slice(0, -1);
+                        return currentValue + value;
+                    case 'date':
+                        var baseDate = new Date(2023, 0, 1);
+                        var selectedDate = new Date(baseDate.getTime() + value * 86400000);
+                        var year = selectedDate.getFullYear();
+                        var month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                        var day = String(selectedDate.getDate()).padStart(2, '0');
+                        return year + '-' + month + '-' + day;
+                    case 'string':
+                        return value;
+                    default:
+                        return String(value);
+                }
+            }
+            
+            // 启用自动保存
+            function enableAutoSave() {
+                if (!app.tableCore) return;
+                
+                try {
+                    if (app.tableCore.eventManager && window.EVENTS) {
+                        app.tableCore.eventManager.on(window.EVENTS.TABLE_DATA_CHANGED, function() {
+                            setTimeout(showStats, 100);
+                        });
+                    }
+                } catch (error) {
+                    console.error('启用自动保存失败:', error);
+                }
+            }
+            
+            // 窗口大小变化时重新初始化Canvas
+            window.addEventListener('resize', function() {
+                if (app.tableCore) {
+                    setTimeout(function() {
+                        try {
+                            initializeCanvas();
+                            app.tableCore.render();
+                        } catch (error) {
+                            console.error('重新渲染失败:', error);
+                        }
+                    }, 100);
+                }
+            });
+            
+            // 启动应用
+            function init() {
+                setTimeout(startApp, 100);
+            }
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+            
+        })();
+    </script>
+</body>
+</html>
