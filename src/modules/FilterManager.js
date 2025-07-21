@@ -86,12 +86,10 @@
      */
     FilterManager.prototype.initializeFilterStack = function() {
         if (!this.db) {
-            console.log('⚠️ 数据库未就绪，跳过筛选栈初始化');
             return;
         }
         
         if (this.db.totalRows === 0) {
-            console.log('⚠️ 数据库无数据，跳过筛选栈初始化');
             this.filterStack = [];
             this.filterOrder = [];
             this.filterConditions = {};
@@ -108,11 +106,6 @@
         this.filterOrder = [];
         this.filterConditions = {};
         
-        console.log('🎯 筛选栈初始化完成:', {
-            totalRows: this.db.totalRows,
-            stackLevels: this.filterStack.length,
-            level0Rows: this.filterStack[0].length
-        });
     };
     
     /**
@@ -122,7 +115,6 @@
         if (!this.db) return false;
         
         if (this.filterStack.length === 0 && this.db.totalRows > 0) {
-            console.log('🔧 延迟初始化筛选栈...');
             this.initializeFilterStack();
         }
         
@@ -235,11 +227,6 @@
         // 通知筛选完成
         this.notifyFilterComplete();
         
-        console.log('🎯 应用最新筛选结果:', {
-            level: latestLevel,
-            rowCount: latestRowIndices.length,
-            filterOrder: this.filterOrder
-        });
     };
 
     // ========================================
@@ -482,7 +469,6 @@
     FilterManager.prototype.getEffectiveRowsForColumn = function(columnIndex) {
         // 🔧 确保筛选栈已初始化
         if (!this.ensureFilterStackInitialized()) {
-            console.log('⚠️ 筛选栈初始化失败，回退到全量查询');
             var allRows = [];
             for (var i = 0; i < this.db.totalRows; i++) {
                 allRows.push(i);
@@ -518,12 +504,6 @@
             this.filterOrder.push(columnIndex);
             this.filterConditions[columnIndex] = filterCondition;
             
-            console.log('🆕 新增筛选级别:', {
-                column: columnIndex,
-                newLevel: this.filterStack.length - 1,
-                rowCount: filteredRowIndices.length,
-                stackDepth: this.filterStack.length
-            });
         } else {
             // 🔄 更新现有筛选 - 替换该级别及其后续级别
             this.filterStack.length = columnLevel + 1; // 截断栈
@@ -534,12 +514,6 @@
             this.filterOrder.push(columnIndex);
             this.filterConditions[columnIndex] = filterCondition;
             
-            console.log('🔄 更新筛选级别:', {
-                column: columnIndex,
-                level: columnLevel,
-                rowCount: filteredRowIndices.length,
-                stackDepth: this.filterStack.length
-            });
         }
     };
     
@@ -556,11 +530,6 @@
             this.filterOrder.length = columnLevel - 1;
             delete this.filterConditions[columnIndex];
             
-            console.log('🗑️ 移除筛选级别:', {
-                column: columnIndex,
-                removedLevel: columnLevel,
-                newStackDepth: this.filterStack.length
-            });
         }
     };
 
@@ -582,18 +551,10 @@
         // 🎯 获取该列的有效行索引（基于筛选栈）
         var effectiveRowIndices = this.getEffectiveRowsForColumn(columnIndex);
         
-        console.log('🎯 获取列' + columnIndex + '唯一值:', {
-            dbTotalRows: this.db.totalRows,
-            effectiveRows: effectiveRowIndices.length,
-            stackDepth: this.filterStack.length,
-            filterOrder: this.filterOrder,
-            firstFewRows: effectiveRowIndices.slice(0, 5)
-        });
         
         // 🚀 使用基于指定行的基数排序方法（高性能）
         if (this.db.getColumnUniqueValuesFromRows) {
             var result = this.db.getColumnUniqueValuesFromRows(columnIndex, effectiveRowIndices);
-            console.log('🎯 列' + columnIndex + '唯一值结果:', result.slice(0, 5));
             return result;
         }
         

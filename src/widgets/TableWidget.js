@@ -77,7 +77,7 @@
     
     /**
      * 释放焦点控制权（给EditWidget）
-     * 当EditWidget需要编辑时调用，暂时禁用Canvas焦点接收
+     * 当EditWidget需要编辑时调用，禁用Canvas焦点接收
      */
     TableWidget.prototype.releaseFocus = function() {
         this.state.allowFocus = false;

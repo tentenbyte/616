@@ -355,7 +355,6 @@
         if (!this.state.isDirty || !this.dbManager) return;
         
         var self = this;
-        console.log('开始保存表格数据到IndexedDB...');
         
         // 构建要保存的数据
         var tableData = {
@@ -368,7 +367,6 @@
         // 保存数据
         this.dbManager.saveTable(tableData).then(function() {
             self.state.isDirty = false;
-            console.log('表格数据保存成功');
             if (self.eventManager && global.EVENTS) {
                 self.eventManager.emit(global.EVENTS.DB_SAVE_SUCCESS, { tableId: self.tableId });
             }
@@ -382,24 +380,20 @@
      */
     SimpleTableCore.prototype.loadFromIndexedDB = function() {
         if (!this.dbManager) {
-            console.log('DatabaseManager未初始化，使用默认数据');
             return;
         }
         
         var self = this;
-        console.log('开始从IndexedDB加载表格数据...');
         
         this.dbManager.getTable(this.tableId).then(function(tableData) {
             if (tableData && tableData.data) {
                 self.db.importData(tableData.data);
                 self.state.isDirty = false;
                 self.render();
-                console.log('表格数据加载成功');
                 if (self.eventManager && global.EVENTS) {
                     self.eventManager.emit(global.EVENTS.DB_LOAD_SUCCESS, { tableId: self.tableId });
                 }
             } else {
-                console.log('没有找到保存的数据，将使用默认数据');
             }
         }).catch(function(error) {
             console.error('加载失败，将使用默认数据:', error);

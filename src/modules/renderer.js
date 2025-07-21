@@ -262,8 +262,7 @@
         }
         
         if (cellValue) {
-            // 使用默认背景色（暂时不支持自定义背景色）
-            // TODO: 在列式存储中添加样式支持
+            // 使用默认背景色
             
             // 绘制文本
             this.ctx.fillStyle = this.config.textColor;
@@ -271,27 +270,7 @@
             this.drawCellText(cellValue, x, y, this.config.cellWidth, this.config.cellHeight);
         }
         
-        // 绘制选中状态 - 已被CSS方式替代，此代码保留用于兼容性
-        // 注意：现在选择框由CSS元素处理，无需Canvas绘制
-        if (isSelected) {
-            // 选择框现在由CSS处理，这里仅保留代码结构
-            // 如果需要传统Canvas绘制，可以取消注释以下代码：
-            /*
-            this.ctx.fillStyle = this.config.selectedBg;
-            this.ctx.fillRect(x, y, this.config.cellWidth, this.config.cellHeight);
-            
-            // 重绘文本（在选中背景上）
-            if (cellData && cellData.value) {
-                this.ctx.fillStyle = (cellData.style && cellData.style.color) || this.config.textColor;
-                this.drawCellText(cellData.value, x, y, this.config.cellWidth, this.config.cellHeight);
-            }
-            
-            // 绘制选中边框
-            this.ctx.strokeStyle = this.config.selectedBorderColor;
-            this.ctx.lineWidth = this.config.selectedBorderWidth;
-            this.ctx.strokeRect(x, y, this.config.cellWidth, this.config.cellHeight);
-            */
-        }
+        // 选中状态由CSS处理
     };
 
     // 重绘相邻单元格的可见部分
@@ -692,8 +671,7 @@
                     continue;
                 }
                 
-                // 绘制单元格背景（暂时跳过自定义样式）
-                // TODO: 在列式存储中添加样式支持
+                // 绘制单元格背景
                 
                 // 🔧 重新设置文本样式（确保每次都正确设置）
                 this.ctx.fillStyle = this.config.textColor || '#000000';
@@ -887,13 +865,9 @@
         // 表头边框已删除
     };
 
-    // 旧版本的Canvas选择框绘制方法 - 已被CSS方式替代
-    // 保留此方法用于兼容性，但实际已不再使用
+    // Canvas选择框绘制方法 - 已被CSS方式替代
     TableRenderer.prototype.drawSelection = function(selectedCell) {
-        // 优势：CSS transform比Canvas重绘快20倍以上
-        return; // 直接返回，不再执行Canvas绘制
-        
-        // ... Canvas绘制代码
+        return; // CSS方式替代Canvas绘制
     };
 
     TableRenderer.prototype.drawScrollbars = function(tableData) {
