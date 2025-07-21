@@ -34,7 +34,12 @@
         });
         
         this.renderer = this.tableWidget.renderer;
-        this.editWidget = null;
+        
+        // 编辑控件 - 管理全局输入框和专用控件
+        this.editWidget = new global.EditWidget(canvas, config, {
+            eventManager: this.eventManager,
+            tableCore: this
+        });
         
         // 历史记录
         this.history = {
@@ -69,7 +74,7 @@
         var col = this.state.selectedCell.col;
         
         if (row >= 0 && col >= 0 && this.editWidget) {
-            this.editWidget.startEdit(row, col, null, selectAll);
+            this.editWidget.startEdit(row, col, selectAll);
         }
     };
 
