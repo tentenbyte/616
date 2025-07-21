@@ -1584,6 +1584,23 @@
             }
         }
         
+        // 🔧 修复：增加当前行数计数器
+        this.currentRows++;
+        
+        // 🔧 修复：同时更新总行数和可见行数
+        this.totalRows = this.currentRows;
+        this.visibleRows = this.currentRows;
+        
+        // 🔧 修复：更新显示索引数组，确保新行可见
+        this.displayIndices[newRowIndex] = newRowIndex;
+        
+        console.log('🆕 添加新行:', {
+            newRowIndex: newRowIndex,
+            currentRows: this.currentRows,
+            totalRows: this.totalRows,
+            visibleRows: this.visibleRows
+        });
+        
         return newRowIndex;
     };
 
