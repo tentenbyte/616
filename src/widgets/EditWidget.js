@@ -35,7 +35,8 @@
         this.state = {
             isEditing: false,
             currentCell: { row: -1, col: -1 },
-            globalInput: null
+            globalInput: null,
+            originalValue: '' // 保存进入编辑时的原始值
         };
         
         // 专用控件引用
@@ -187,12 +188,13 @@
             this.state.globalInput.style.left = x + 'px';
             this.state.globalInput.style.top = y + 'px';
             
-            // 更新输入框内容
+            // 更新输入框内容并保存原始值
             var cellValue = '';
             if (this.tableCore && this.tableCore.getCellValue) {
                 cellValue = this.tableCore.getCellValue(row, col) || '';
             }
             this.state.globalInput.value = cellValue;
+            this.state.originalValue = cellValue; // 保存原始值供后续恢复使用
             
         } catch (error) {
             console.error('移动输入框失败:', error);
@@ -434,11 +436,26 @@
         var row = this.state.currentCell.row;
         var col = this.state.currentCell.col;
         
-        // 恢复原值
-        var originalValue = this.tableCore.getCellValue(row, col) || '';
-        this.state.globalInput.value = originalValue;
+        // 恢复到进入编辑时的原始值
+        this.state.globalInput.value = this.state.originalValue;
         
-        this.endEdit();
+        // 将原始值保存回数据库
+        if (row >= 0 && col >= 0) {
+            this.tableCore.setCellValue(row, col, this.state.originalValue);
+        }
+        
+        // 触发表格重新渲染
+        if (this.tableCore && this.tableCore.render) {
+            this.tableCore.render();
+        }
+        
+        // 恢复原值后，保持光标隐藏（导航模式）
+        var self = this;
+        setTimeout(function() {
+            self.state.globalInput.style.caretColor = 'transparent';
+            self.state.globalInput.dataset.isFirstClick = 'true';
+            self.state.globalInput.focus(); // 保持焦点以接收键盘事件
+        }, 10);
     };
     
     /**
