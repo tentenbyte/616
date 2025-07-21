@@ -70,11 +70,9 @@
             this.displayIndices[i] = i;
         }
         
-        // 列名映射（可选）
+        // 🏷️ 业务列名映射 - 中文友好名称
         this.columnNames = [];
-        for (var i = 0; i < maxCols; i++) {
-            this.columnNames[i] = this.generateColumnName(i);
-        }
+        this.initializeBusinessColumnNames(maxCols);
         
         // 🗂️ 存储层与视图层分离架构
         // 存储层：完整的列式数据（永不改变原始顺序）
@@ -103,6 +101,41 @@
     /**
      * 生成列名 (A, B, C, ..., AA, AB, ...)
      */
+    /**
+     * 🏷️ 初始化业务列名 - 中文友好名称
+     * @param {number} maxCols 最大列数
+     */
+    SimpleColumnarDB.prototype.initializeBusinessColumnNames = function(maxCols) {
+        // 🎯 预定义的业务列名（按索引顺序）
+        var businessColumnNames = [
+            '名称',    // 第0列 - 员工姓名/产品名称
+            '年龄',    // 第1列 - 年龄/使用年限  
+            '地域',    // 第2列 - 地区/城市
+            '岗位',    // 第3列 - 职位/类别
+            '月薪',    // 第4列 - 薪资/价格
+            '奖励',    // 第5列 - 奖金/折扣
+            '日期',    // 第6列 - 入职日期/创建日期
+            '备注'     // 第7列 - 备注信息
+        ];
+        
+        // 初始化所有列名
+        for (var i = 0; i < maxCols; i++) {
+            if (i < businessColumnNames.length) {
+                // 使用预定义的中文业务名称
+                this.columnNames[i] = businessColumnNames[i];
+            } else {
+                // 超出预定义范围，使用通用名称
+                this.columnNames[i] = '列' + (i + 1);
+            }
+        }
+        
+        console.log('🏷️ 业务列名初始化完成:', this.columnNames.slice(0, Math.min(8, maxCols)));
+    };
+    
+    /**
+     * 📝 原Excel风格列名生成器（保留作为备用）
+     * @param {number} colIndex 列索引
+     */
     SimpleColumnarDB.prototype.generateColumnName = function(colIndex) {
         var result = '';
         var index = colIndex;
@@ -113,6 +146,26 @@
         } while (index >= 0);
         
         return result;
+    };
+    
+    /**
+     * 🏷️ 获取列的业务名称
+     * @param {number} columnIndex 列索引
+     * @returns {string} 列的中文业务名称
+     */
+    SimpleColumnarDB.prototype.getColumnName = function(columnIndex) {
+        if (columnIndex >= 0 && columnIndex < this.columnNames.length) {
+            return this.columnNames[columnIndex];
+        }
+        return '未知列';
+    };
+    
+    /**
+     * 🏷️ 获取所有列名数组
+     * @returns {Array} 所有列的中文业务名称数组
+     */
+    SimpleColumnarDB.prototype.getAllColumnNames = function() {
+        return this.columnNames.slice(); // 返回副本，避免外部修改
     };
 
     /**

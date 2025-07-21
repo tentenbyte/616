@@ -447,8 +447,8 @@
             var x = this.config.rowHeaderWidth + col * this.config.cellWidth - this.scrollX;
             
             if (x + this.config.cellWidth > this.config.rowHeaderWidth) {
-                // 生成列标题（A, B, C...）
-                var colLabel = String.fromCharCode(65 + col);
+                // 🏷️ 获取业务友好的中文列名
+                var colLabel = this.database ? this.database.getColumnName(col) : String.fromCharCode(65 + col);
                 
                 // 🎨 绘制区域分隔线（中央垂直线）
                 var separatorX = x + this.config.cellWidth / 2;
