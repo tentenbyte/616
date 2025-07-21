@@ -174,17 +174,12 @@
      */
     TableWidget.prototype.handleColumnHeaderClick = function(col) {
         try {
-            console.log('📌 点击列头:', col);
             
             // 简化版本：直接从数据库获取原始状态
             var db = this.tableCore.db;
             var currentSortCol = db.lastSortColumn;
             var currentSortAsc = db.lastSortAscending;
             
-            console.log('📊 直接从 DB 获取状态:');
-            console.log('   db.lastSortColumn:', currentSortCol, typeof currentSortCol);
-            console.log('   db.lastSortAscending:', currentSortAsc, typeof currentSortAsc);
-            console.log('   点击的列:', col, typeof col);
             
             var nextAction;
             
@@ -203,22 +198,15 @@
                 nextAction = 'sort_asc';
             }
             
-            console.log('🎯 下一步操作:', nextAction);
             
             // 执行操作
             if (nextAction === 'reset') {
-                console.log('🔄 执行重置操作');
                 this.tableCore.resetSort();
             } else {
                 var ascending = (nextAction === 'sort_asc');
-                console.log('🔊 执行排序操作:', ascending ? '升序' : '降序');
                 this.tableCore.sortByColumn(col, ascending);
             }
             
-            // 检查最终状态
-            console.log('🔍 最终状态:');
-            console.log('   db.lastSortColumn:', db.lastSortColumn);
-            console.log('   db.lastSortAscending:', db.lastSortAscending);
             
         } catch (error) {
             console.error('处理列头点击失败:', error);
@@ -319,7 +307,6 @@
      */
     TableWidget.prototype.handleAddRowButtonClick = function() {
         try {
-            console.log('🆕 点击添加行按钮');
             
             // 调用TableCore的添加行方法
             if (this.tableCore && this.tableCore.addRow) {

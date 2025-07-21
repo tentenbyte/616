@@ -152,26 +152,19 @@
         var x = event.offsetX;
         var y = event.offsetY;
         
-        console.log('日历点击坐标:', { x: x, y: y });
 
         // 检查导航按钮点击
         if (y >= 12 && y <= 32) {
-            console.log('点击了导航区域:', { x: x, y: y });
             if (x >= 10 && x <= 45) {
-                console.log('点击了年份减少按钮');
                 this.changeYear(-1); // << 按钮：年份减少
             } else if (x >= 50 && x <= 85) {
-                console.log('点击了月份减少按钮');
                 this.changeMonth(-1); // < 按钮：月份减少
             } else if (x >= this.canvas.width - 85 && x <= this.canvas.width - 50) {
-                console.log('点击了月份增加按钮');
                 this.changeMonth(1); // > 按钮：月份增加
             } else if (x >= this.canvas.width - 45 && x <= this.canvas.width - 10) {
-                console.log('点击了年份增加按钮');
                 this.changeYear(1); // >> 按钮：年份增加
-            } else {
-                console.log('点击了导航区域，但不在按钮范围内');
             }
+        }
         } else if (y >= 53 && y <= this.canvas.height) {
             // 检查日期单元格点击
             var startDay = new Date(this.today.getFullYear(), this.today.getMonth(), 1).getDay();

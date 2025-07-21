@@ -378,13 +378,6 @@
         var maxRows = tableData.currentRows || tableData.maxRows || 100;
         var maxCols = tableData.maxCols || 26;
         
-        console.log('🔧 视口更新:', {
-            canvasSize: { width: canvasWidth, height: canvasHeight },
-            tableSize: { maxRows: maxRows, maxCols: maxCols, currentRows: tableData.currentRows },
-            scroll: { x: this.scrollX, y: this.scrollY },
-            config: { cellWidth: this.config.cellWidth, cellHeight: this.config.cellHeight }
-        });
-        
         // 计算可见的行列范围
         this.viewport.startRow = Math.max(0, Math.floor(this.scrollY / this.config.cellHeight));
         this.viewport.endRow = Math.min(
@@ -397,11 +390,6 @@
             maxCols - 1,
             Math.ceil((this.scrollX + canvasWidth - this.config.rowHeaderWidth) / this.config.cellWidth)
         );
-        
-        console.log('🔧 计算的视口范围:', {
-            rows: { start: this.viewport.startRow, end: this.viewport.endRow },
-            cols: { start: this.viewport.startCol, end: this.viewport.endCol }
-        });
     };
 
     TableRenderer.prototype.drawBackground = function() {
@@ -657,16 +645,6 @@
         this.ctx.textBaseline = 'middle';  // 确保垂直居中
         this.ctx.font = this.config.fontSize + 'px ' + this.config.fontFamily;
         
-        console.log('🎨 开始绘制单元格文字 - Canvas状态:', {
-            textColor: this.ctx.fillStyle,
-            font: this.ctx.font,
-            textAlign: this.ctx.textAlign,
-            textBaseline: this.ctx.textBaseline,
-            viewport: this.viewport,
-            scrollOffset: { x: this.scrollX, y: this.scrollY },
-            tableData: !!tableData,
-            tableCore: !!this.tableCore
-        });
         
         var cellsDrawn = 0;
         var cellsWithData = 0;
@@ -689,16 +667,6 @@
                     cellValue = this.tableCore.db.getValue(row, col);
                 }
                 
-                // 调试：输出数据获取过程（扩展到20行）
-                if (row < 20 && col < 8) {
-                    console.log('🔧 单元格数据获取 [' + row + ',' + col + ']:', {
-                        cellValue: cellValue,
-                        hasTableCore: !!this.tableCore,
-                        hasTableCoreGetCellValue: !!(this.tableCore && this.tableCore.getCellValue),
-                        hasTableCoreDB: !!(this.tableCore && this.tableCore.db),
-                        hasTableData: !!tableData
-                    });
-                }
                 
                 // 确保cellValue是字符串
                 if (cellValue === null || cellValue === undefined) {
@@ -742,11 +710,6 @@
             }
         }
         
-        console.log('📊 单元格绘制完成统计:', {
-            '扫描的单元格数': (this.viewport.endRow - this.viewport.startRow + 1) * (this.viewport.endCol - this.viewport.startCol + 1),
-            '有数据的单元格': cellsWithData,
-            '实际绘制的单元格': cellsDrawn
-        });
     };
 
     // 编辑功能由全局HTML input处理，Canvas专注于渲染
@@ -866,20 +829,8 @@
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
         
-        // 🔧 强化：确保文本绘制成功
         var textToDraw = String(text);
-        console.log('🎨 绘制文本:', { text: textToDraw, x: textX, y: textY, font: this.ctx.font, fillStyle: this.ctx.fillStyle });
-        
-        // 多次尝试绘制，确保成功
         this.ctx.fillText(textToDraw, textX, textY);
-        
-        // 验证绘制结果
-        var testWidth = this.ctx.measureText(textToDraw).width;
-        if (testWidth > 0) {
-            console.log('✅ 文本绘制成功:', textToDraw, '宽度:', testWidth);
-        } else {
-            console.error('❌ 文本绘制失败:', textToDraw);
-        }
         
         this.ctx.restore();
     };
@@ -1019,17 +970,13 @@
      * 只响应列头左侧1/4区域的点击以触发排序
      */
     TableRenderer.prototype.getColumnHeaderFromPixel = function(x, y) {
-        console.log('🔍 检查列头点击位置:', { x: x, y: y, rowHeaderWidth: this.config.rowHeaderWidth, headerHeight: this.config.headerHeight });
-        
         // 检查是否在列头区域（Y轴）
         if (y < 0 || y >= this.config.headerHeight) {
-            console.log('❌ Y轴超出范围');
             return -1;
         }
         
         // 检查是否在列区域（X轴）
         if (x < this.config.rowHeaderWidth) {
-            console.log('❌ X轴在行头区域内');
             return -1;
         }
         
@@ -1042,29 +989,17 @@
         var relativeX = x - colStartX;
         var quarterWidth = this.config.cellWidth / 4;
         
-        console.log('🧮 计算结果:', { 
-            adjustedX: adjustedX, 
-            col: col, 
-            scrollX: this.scrollX, 
-            cellWidth: this.config.cellWidth,
-            colStartX: colStartX,
-            relativeX: relativeX,
-            quarterWidth: quarterWidth
-        });
         
         // 确保列索引有效
         if (col >= 0 && col < 100) { // 最大100列
             // 检查是否点击在列头左侧1/4区域内
             if (relativeX >= 0 && relativeX <= quarterWidth) {
-                console.log('✅ 点击在左侧1/4区域，返回列索引:', col);
                 return col;
             } else {
-                console.log('❌ 点击不在左侧1/4区域，relativeX:', relativeX, 'quarterWidth:', quarterWidth);
                 return -1;
             }
         }
         
-        console.log('❌ 列索引无效');
         return -1;
     };
 

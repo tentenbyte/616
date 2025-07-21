@@ -65,15 +65,6 @@
         this.lastSortColumn = undefined;
         this.lastSortAscending = undefined;
         
-        // 🔧 向后兼容：保留旧的缓存数组（避免引用错误）
-        this.cacheValid = [];
-        this.cachedCounts = {};
-        this.sortIndexValid = [];
-        
-        for (var i = 0; i < maxCols; i++) {
-            this.cacheValid[i] = false;
-            this.sortIndexValid[i] = false;
-        }
     }
 
     /**
@@ -109,21 +100,6 @@
         
     };
     
-    /**
-     * 📝 原Excel风格列名生成器（保留作为备用）
-     * @param {number} colIndex 列索引
-     */
-    SimpleColumnarDB.prototype.generateColumnName = function(colIndex) {
-        var result = '';
-        var index = colIndex;
-        
-        do {
-            result = String.fromCharCode(65 + (index % 26)) + result;
-            index = Math.floor(index / 26) - 1;
-        } while (index >= 0);
-        
-        return result;
-    };
     
     /**
      * 🏷️ 获取列的业务名称
@@ -176,21 +152,7 @@
                 var encoded = (year << 26) | (month << 22) | (day << 17) | (hour << 11) | (minute << 5) | second;
                 var finalEncoded = encoded | 0x80000000; // 最高位标记为日期
                 
-                // 📊 详细日期编码调试
-                console.log('📅 日期编码:', str);
-                console.log('   解析: ' + originalYear + '年 ' + month + '月 ' + day + '日 ' + hour + ':' + minute + ':' + second);
-                console.log('   相对年: ' + year + ' (从2020年起)');
-                console.log('   位移计算:');
-                console.log('     年(' + year + ') << 26 = 0x' + (year << 26).toString(16));
-                console.log('     月(' + month + ') << 22 = 0x' + (month << 22).toString(16));
-                console.log('     日(' + day + ') << 17 = 0x' + (day << 17).toString(16));
-                console.log('     时(' + hour + ') << 11 = 0x' + (hour << 11).toString(16));
-                console.log('     分(' + minute + ') << 5 = 0x' + (minute << 5).toString(16));
-                console.log('     秒(' + second + ') = 0x' + second.toString(16));
-                console.log('   最终编码: 0x' + finalEncoded.toString(16) + ' (' + finalEncoded + ')');
-                console.log('   无标记位: 0x' + encoded.toString(16) + ' (' + encoded + ')');
-                console.log('');
-                
+                        
                 return finalEncoded;
             }
         }
@@ -291,24 +253,6 @@
      * @param {*} value 要设置的值
      */
     SimpleColumnarDB.prototype.setValue = function(actualRow, col, value) {
-        // 🔧 详细的参数和状态检查
-        console.log('🔍 setValue调用:', {
-            actualRow: actualRow, 
-            col: col, 
-            value: value,
-            maxRows: this.maxRows,
-            maxCols: this.maxCols,
-            columnsExists: !!this.columns,
-            columnsLength: this.columns ? this.columns.length : 'undefined'
-        });
-        
-        // 🔧 分步检查columns[col]
-        if (this.columns && col < this.columns.length) {
-            console.log('  columns[' + col + ']存在:', !!this.columns[col]);
-            if (this.columns[col]) {
-                console.log('  columns[' + col + ']长度:', this.columns[col].length);
-            }
-        }
         
         if (actualRow >= this.maxRows || col >= this.maxCols) {
             throw new Error('索引超出范围: row=' + actualRow + ', col=' + col + ', maxRows=' + this.maxRows + ', maxCols=' + this.maxCols);
@@ -325,11 +269,8 @@
         try {
             // 编码值
             var encodedValue = this.encode(value, col);
-            console.log('  编码结果:', encodedValue);
-            
             // 直接操作存储层
             this.columns[col][actualRow] = encodedValue;
-            console.log('  存储成功');
             
             // 更新存储层统计
             this.totalRows = Math.max(this.totalRows, actualRow + 1);
@@ -422,28 +363,6 @@
         return this.columns[col][row];
     };
 
-    /**
-     * 核心算法：计数排序
-     */
-    SimpleColumnarDB.prototype.getColumnCounts = function(col) {
-        if (this.cacheValid[col] && this.cachedCounts[col]) {
-            return this.cachedCounts[col];
-        }
-        
-        var counts = {};
-        var column = this.columns[col];
-        
-        for (var i = 0; i < this.currentRows; i++) {
-            var value = column[i];
-            counts[value] = (counts[value] || 0) + 1;
-        }
-        
-        // 缓存结果
-        this.cachedCounts[col] = counts;
-        this.cacheValid[col] = true;
-        
-        return counts;
-    };
 
     /**
      * 高性能基数排序 - 专为uint32优化
@@ -553,11 +472,6 @@
         var sortTime = endTime - startTime;
         var rowsPerMs = (length / sortTime).toFixed(0);
         
-        console.log('🚀 列' + col + ' 基数排序完成 (O(n))');
-        console.log('   数据量:', length + '行');
-        console.log('   耗时:', sortTime.toFixed(2) + 'ms'); 
-        console.log('   性能:', rowsPerMs + '行/ms');
-        console.log('   前5个排序结果:', sortedRowIndices.slice(0, 5));
         
         return sortedRowIndices;
     };
@@ -830,8 +744,6 @@
         this.invertedIndexes[col] = index;
         this.invertedIndexValid[col] = true;
         
-        var endTime = performance.now();
-        console.log('列' + col + '倒排索引构建完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
         
         return index;
     };
@@ -872,8 +784,6 @@
             result = this.uniqueAndSort(result);
         }
         
-        var endTime = performance.now();
-        console.log('列' + col + '多值筛选完成，耗时:', (endTime - startTime).toFixed(2), 'ms，结果:', result.length, '行');
         
         return result;
     };
@@ -929,8 +839,6 @@
             }
         }
         
-        var endTime = performance.now();
-        console.log('列' + col + '获取唯一值完成，耗时:', (endTime - startTime).toFixed(2), 'ms，唯一值:', unique.length, '个');
         
         return unique;
     };
@@ -1015,9 +923,6 @@
         if (ascending === undefined) ascending = true;
         
         var startTime = performance.now();
-        console.log('🎯 开始按列' + col + '排序 (方向: ' + (ascending ? '升序' : '降序') + ')...');
-        console.log('   存储层数据:', this.totalRows + '行');
-        console.log('   当前视图:', this.visibleRows + '行');
         
         // 🚀 生成基于存储层的排序索引
         var sortedRowIndices = this.generateSortedIndices(col);
@@ -1041,15 +946,7 @@
         this.lastSortColumn = col;
         this.lastSortAscending = ascending;
         
-        // 特别调试第一列
-        if (col === 0) {
-            console.log('🔴 设置第一列排序状态:');
-            console.log('   this.lastSortColumn:', this.lastSortColumn, typeof this.lastSortColumn);
-            console.log('   this.lastSortAscending:', this.lastSortAscending, typeof this.lastSortAscending);
-        }
-        
         var endTime = performance.now();
-        console.log('列' + col + '排序完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
         
         return {
             column: col,
@@ -1090,8 +987,6 @@
      * 将 displayIndices 重置为 [0, 1, 2, 3, ...] 自然序列
      */
     SimpleColumnarDB.prototype.resetDisplayOrder = function() {
-        console.log('🔄 重置视图为原始顺序...');
-        console.log('   存储层数据:', this.totalRows + '行');
         
         // 重置为自然顺序：0, 1, 2, 3, ...
         for (var i = 0; i < this.totalRows; i++) {
@@ -1103,7 +998,6 @@
         this.lastSortColumn = undefined;
         this.lastSortAscending = undefined;
         
-        console.log('✅ 视图已重置为原始顺序');
     };
 
     /**
@@ -1411,21 +1305,9 @@
             temp = swap;
         }
         
-        // 📊 性能统计（开发模式）
-        if (typeof console !== 'undefined' && console.log && len > 100) {
-            var performanceMsg = '🚀 基数排序完成 - 处理了 ' + len + ' 个唯一值，4轮排序，总操作数约: ' + (len * 4);
-            // console.log(performanceMsg);  // 可选：启用性能日志
-        }
         
         var result = Array.from(current);
         
-        // 🔧 开发模式：验证排序正确性
-        if (typeof console !== 'undefined' && console.assert) {
-            for (var i = 1; i < result.length; i++) {
-                console.assert(result[i-1] <= result[i], 
-                    '基数排序错误：位置 ' + (i-1) + '(' + result[i-1] + ') > 位置 ' + i + '(' + result[i] + ')');
-            }
-        }
         
         return result;
     };
@@ -1444,10 +1326,16 @@
     };
 
     /**
-     * 获取列的唯一值（基于计数排序）
+     * 获取列的唯一值
      */
     SimpleColumnarDB.prototype.getUniqueValues = function(col) {
-        var counts = this.getColumnCounts(col);
+        // 内联计数
+        var counts = {};
+        var column = this.columns[col];
+        for (var i = 0; i < this.currentRows; i++) {
+            var value = column[i];
+            counts[value] = (counts[value] || 0) + 1;
+        }
         var uniqueValues = [];
         
         for (var encoded in counts) {
@@ -1461,7 +1349,13 @@
      * 获取列的统计信息
      */
     SimpleColumnarDB.prototype.getColumnStats = function(col) {
-        var counts = this.getColumnCounts(col);
+        // 内联计数
+        var counts = {};
+        var column = this.columns[col];
+        for (var i = 0; i < this.currentRows; i++) {
+            var value = column[i];
+            counts[value] = (counts[value] || 0) + 1;
+        }
         var uniqueCount = Object.keys(counts).length;
         var nonNullCount = this.currentRows - (counts[0] || 0);
         
@@ -1478,7 +1372,13 @@
      * 获取出现频率最高的值
      */
     SimpleColumnarDB.prototype.getTopValues = function(col, limit) {
-        var counts = this.getColumnCounts(col);
+        // 内联计数
+        var counts = {};
+        var column = this.columns[col];
+        for (var i = 0; i < this.currentRows; i++) {
+            var value = column[i];
+            counts[value] = (counts[value] || 0) + 1;
+        }
         var values = [];
         
         for (var encoded in counts) {
@@ -1511,8 +1411,6 @@
         }
         
         this.currentRows = Math.max(this.currentRows, maxRows);
-        this.cacheValid[col] = false;
-        this.sortIndexValid[col] = false;
     };
 
     /**
@@ -1571,12 +1469,6 @@
         // 🔧 修复：更新显示索引数组，确保新行可见
         this.displayIndices[newRowIndex] = newRowIndex;
         
-        console.log('🆕 添加新行:', {
-            newRowIndex: newRowIndex,
-            currentRows: this.currentRows,
-            totalRows: this.totalRows,
-            visibleRows: this.visibleRows
-        });
         
         return newRowIndex;
     };
@@ -1598,9 +1490,6 @@
             // 清除最后一行
             column[this.currentRows - 1] = 0;
             
-            // 清除缓存
-            this.cacheValid[col] = false;
-            this.sortIndexValid[col] = false;
         }
         
         this.currentRows--;
@@ -1617,7 +1506,13 @@
         
         for (var col = 0; col < this.maxCols; col++) {
             totalMemory += this.maxRows * 4; // 每个uint32 4字节
-            var counts = this.getColumnCounts(col);
+            // 内联计数
+            var counts = {};
+            var column = this.columns[col];
+            for (var i = 0; i < this.currentRows; i++) {
+                var value = column[i];
+                counts[value] = (counts[value] || 0) + 1;
+            }
             totalUniqueValues += Object.keys(counts).length;
             totalStringPoolSize += this.stringPools[col].length;
         }
@@ -1645,7 +1540,6 @@
      * 🧹 清空所有数据
      */
     SimpleColumnarDB.prototype.clear = function() {
-        console.log('🧹 清空数据库...');
         
         // 清空所有列数据
         for (var col = 0; col < this.maxCols; col++) {
@@ -1677,7 +1571,6 @@
         this.lastSortColumn = undefined;
         this.lastSortAscending = undefined;
         
-        console.log('✅ 数据库已清空');
     };
 
     /**
@@ -1787,8 +1680,6 @@
             }
         }
         
-        var endTime = performance.now();
-        console.log('组合查询完成，耗时:', (endTime - startTime).toFixed(2), 'ms，结果:', result.length, '行');
         
         return result;
     };
@@ -1800,7 +1691,6 @@
         if (!rows || rows.length === 0) return;
         
         var startTime = performance.now();
-        console.log('开始批量追加', rows.length, '行数据...');
         
         // 暂停索引更新
         var needsRebuild = [];
@@ -1825,16 +1715,12 @@
         // 批量清除索引
         for (var col = 0; col < this.maxCols; col++) {
             if (needsRebuild[col]) {
-                this.cacheValid[col] = false;
-                this.sortIndexValid[col] = false;
                 if (this.invertedIndexValid && this.invertedIndexValid[col]) {
                     this.invertedIndexValid[col] = false;
                 }
             }
         }
         
-        var endTime = performance.now();
-        console.log('批量追加完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
     };
 
     /**
@@ -1849,7 +1735,6 @@
      */
     SimpleColumnarDB.prototype.preloadIndexes = function() {
         var startTime = performance.now();
-        console.log('开始预热所有索引...');
         
         for (var col = 0; col < this.maxCols; col++) {
             if (this.currentRows > 0) {
@@ -1858,8 +1743,6 @@
             }
         }
         
-        var endTime = performance.now();
-        console.log('索引预热完成，耗时:', (endTime - startTime).toFixed(2), 'ms');
     };
 
     /**

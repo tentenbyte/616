@@ -171,7 +171,6 @@
         var x = event.offsetX;
         var y = event.offsetY;
         
-        console.log('数字键盘点击坐标:', { x: x, y: y });
 
         // 检查点击位置是否在某个按钮上
         for (var i = 0; i < this.buttonInfo.length; i += 4) {

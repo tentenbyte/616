@@ -238,7 +238,6 @@
         var x = event.offsetX;
         var y = event.offsetY;
         
-        console.log('字符串选择器点击坐标:', { x: x, y: y });
         
         // 检查点击位置
         if (x >= 4 && x <= this.canvas.width - 8) {
