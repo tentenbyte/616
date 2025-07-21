@@ -133,6 +133,16 @@
         this.canvas.addEventListener('mouseleave', function(e) {
             self.handleCanvasMouseLeave(e);
         });
+        
+        // 🎯 添加Escape键关闭面板
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                if (self.state.isPanelVisible) {
+                    self.hideFilterPanel();
+                    e.preventDefault();
+                }
+            }
+        });
     };
 
     // ========================================
@@ -157,10 +167,8 @@
             e.preventDefault();
             e.stopPropagation();
             this.showFilterPanel(clickedColumn);
-        } else {
-            // 点击其他区域，隐藏筛选面板
-            this.hideFilterPanel();
         }
+        // 🎯 移除自动隐藏逻辑，只有点击筛选按钮才能切换面板
     };
     
     /**
@@ -299,11 +307,24 @@
     // ========================================
     
     /**
-     * 显示筛选面板
+     * 切换筛选面板显示/隐藏
      * @param {number} columnIndex 列索引
+     * 
+     * 交互逻辑：
+     * - 第一次点击：显示该列的筛选面板  
+     * - 再次点击同一列：隐藏面板
+     * - 点击其他列：切换到新列的面板
+     * - Escape键：关闭当前面板
      */
     TableFilter.prototype.showFilterPanel = function(columnIndex) {
-        // 先隐藏现有面板
+        // 🎯 实现切换逻辑
+        if (this.state.isPanelVisible && this.state.activePanelColumn === columnIndex) {
+            // 如果当前列的面板已经显示，则隐藏它
+            this.hideFilterPanel();
+            return;
+        }
+        
+        // 先隐藏现有面板（可能是其他列的）
         this.hideFilterPanel();
         
         try {

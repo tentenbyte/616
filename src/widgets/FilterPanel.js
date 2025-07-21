@@ -337,8 +337,7 @@
             // 绘制搜索框
             this.drawSearchBox();
             
-            // 绘制分隔线
-            this.drawSeparator();
+            // 🎨 移除分隔线，保持简洁设计
             
             // 绘制全选/全不选按钮
             this.drawSelectAllButtons();
@@ -403,57 +402,45 @@
         };
     };
     
-    /**
-     * 绘制分隔线
-     */
-    FilterPanel.prototype.drawSeparator = function() {
-        var separatorY = this.uiConfig.searchHeight + 16;
-        
-        this.ctx.strokeStyle = this.uiConfig.borderColor;
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(8, separatorY);
-        this.ctx.lineTo(this.state.width - 8, separatorY);
-        this.ctx.stroke();
-    };
     
     /**
      * 绘制全选/全不选按钮
      */
     FilterPanel.prototype.drawSelectAllButtons = function() {
-        var buttonY = this.uiConfig.searchHeight + 24;
-        var buttonHeight = 20;
+        var buttonY = this.uiConfig.searchHeight + 18;  // 搜索框和按钮之间10px间距
+        var buttonHeight = 22;  // 高度+2px
+        var buttonWidth = 42;   // 宽度+2px
         
         // 全选按钮
         this.ctx.fillStyle = '#3498db';
-        this.ctx.fillRect(8, buttonY, 40, buttonHeight);
+        this.ctx.fillRect(8, buttonY, buttonWidth, buttonHeight);
         
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = '11px ' + this.uiConfig.fontFamily;
+        this.ctx.font = '12px ' + this.uiConfig.fontFamily;  // 字体+1px
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('全选', 28, buttonY + buttonHeight / 2);
+        this.ctx.fillText('全选', 8 + buttonWidth / 2, buttonY + buttonHeight / 2);
         
         // 全不选按钮
         this.ctx.fillStyle = '#95a5a6';
-        this.ctx.fillRect(56, buttonY, 40, buttonHeight);
+        this.ctx.fillRect(58, buttonY, buttonWidth, buttonHeight);  // 调整位置适应新宽度
         
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillText('清空', 76, buttonY + buttonHeight / 2);
+        this.ctx.fillText('清空', 58 + buttonWidth / 2, buttonY + buttonHeight / 2);
         
         // 确定按钮
         this.ctx.fillStyle = '#27ae60';
-        this.ctx.fillRect(this.state.width - 48, buttonY, 40, buttonHeight);
+        this.ctx.fillRect(this.state.width - 50, buttonY, buttonWidth, buttonHeight);  // 调整位置适应新宽度
         
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillText('确定', this.state.width - 28, buttonY + buttonHeight / 2);
+        this.ctx.fillText('确定', this.state.width - 50 + buttonWidth / 2, buttonY + buttonHeight / 2);
     };
     
     /**
      * 绘制项目列表
      */
     FilterPanel.prototype.drawItemList = function() {
-        var listStartY = this.uiConfig.searchHeight + 52;
+        var listStartY = this.uiConfig.searchHeight + 48;  // 搜索框+10px+按钮(22px)+5px间距
         var listHeight = this.state.height - listStartY - 8;
         var visibleItems = this.getFilteredUniqueValues();
         
@@ -534,7 +521,7 @@
      */
     FilterPanel.prototype.drawScrollbar = function() {
         var visibleItems = this.getFilteredUniqueValues();
-        var listStartY = this.uiConfig.searchHeight + 52;
+        var listStartY = this.uiConfig.searchHeight + 48;  // 搜索框+10px+按钮(22px)+5px间距
         var listHeight = this.state.height - listStartY - 8;
         var totalContentHeight = visibleItems.length * this.uiConfig.itemHeight;
         
@@ -578,17 +565,17 @@
         }
         
         // 检查按钮点击
-        if (this.isPointInButtonArea(x, y, 8, this.uiConfig.searchHeight + 24, 40, 20)) {
+        if (this.isPointInButtonArea(x, y, 8, this.uiConfig.searchHeight + 18, 42, 22)) {
             this.selectAll();
             return;
         }
         
-        if (this.isPointInButtonArea(x, y, 56, this.uiConfig.searchHeight + 24, 40, 20)) {
+        if (this.isPointInButtonArea(x, y, 58, this.uiConfig.searchHeight + 18, 42, 22)) {
             this.selectNone();
             return;
         }
         
-        if (this.isPointInButtonArea(x, y, this.state.width - 48, this.uiConfig.searchHeight + 24, 40, 20)) {
+        if (this.isPointInButtonArea(x, y, this.state.width - 50, this.uiConfig.searchHeight + 18, 42, 22)) {
             this.applyFilter();
             return;
         }
@@ -631,9 +618,9 @@
         }
         
         // 更新鼠标样式
-        var isOverButton = this.isPointInButtonArea(x, y, 8, this.uiConfig.searchHeight + 24, 40, 20) ||
-                          this.isPointInButtonArea(x, y, 56, this.uiConfig.searchHeight + 24, 40, 20) ||
-                          this.isPointInButtonArea(x, y, this.state.width - 48, this.uiConfig.searchHeight + 24, 40, 20);
+        var isOverButton = this.isPointInButtonArea(x, y, 8, this.uiConfig.searchHeight + 18, 42, 22) ||
+                          this.isPointInButtonArea(x, y, 58, this.uiConfig.searchHeight + 18, 42, 22) ||
+                          this.isPointInButtonArea(x, y, this.state.width - 50, this.uiConfig.searchHeight + 18, 42, 22);
         
         this.canvas.style.cursor = (newHoveredIndex >= 0 || isOverButton) ? 'pointer' : 'default';
     };
@@ -648,7 +635,7 @@
         e.preventDefault();
         
         var visibleItems = this.getFilteredUniqueValues();
-        var listStartY = this.uiConfig.searchHeight + 52;
+        var listStartY = this.uiConfig.searchHeight + 48;  // 搜索框+10px+按钮(22px)+5px间距
         var listHeight = this.state.height - listStartY - 8;
         var totalContentHeight = visibleItems.length * this.uiConfig.itemHeight;
         var maxScrollTop = Math.max(0, totalContentHeight - listHeight);
