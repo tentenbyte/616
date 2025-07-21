@@ -215,6 +215,17 @@
         TABLE_SORTED: 'table:sorted',
         TABLE_SORT_RESET: 'table:sortReset',
         TABLE_COLUMN_HEADER_CLICKED: 'table:columnHeaderClicked',
+        TABLE_RENDERED: 'table:rendered',
+        TABLE_FILTERED: 'table:filtered',
+        
+        // 筛选事件
+        FILTER_APPLIED: 'filter:applied',
+        FILTER_CLEARED: 'filter:cleared',
+        FILTER_COLUMN_CHANGED: 'filter:columnChanged',
+        FILTER_GLOBAL_SEARCH: 'filter:globalSearch',
+        FILTER_PANEL_SHOWN: 'filter:panelShown',
+        FILTER_PANEL_CLOSED: 'filter:panelClosed',
+        FILTER_STATE_CHANGED: 'filter:stateChanged',
         
         // 数据库事件
         DB_INITIALIZED: 'db:initialized',

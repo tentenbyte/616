@@ -41,6 +41,20 @@
             tableCore: this
         });
         
+        // 筛选系统 - 管理数据筛选和面板交互
+        this.tableFilter = null;
+        try {
+            if (global.TableFilter) {
+                this.tableFilter = new global.TableFilter(canvas, config, {
+                    eventManager: this.eventManager,
+                    tableCore: this,
+                    renderer: this.renderer
+                });
+            }
+        } catch (error) {
+            console.warn('筛选系统初始化失败，将禁用筛选功能:', error);
+        }
+        
         // 历史记录
         this.history = {
             undoStack: [],
@@ -402,6 +416,13 @@
     SimpleTableCore.prototype.render = function() {
         if (this.tableWidget && this.db) {
             this.tableWidget.render();
+            
+            // 触发表格渲染完成事件
+            if (this.eventManager && global.EVENTS) {
+                this.eventManager.emit(global.EVENTS.TABLE_RENDERED, {
+                    timestamp: Date.now()
+                });
+            }
         }
     };
 
@@ -436,6 +457,10 @@
     SimpleTableCore.prototype.destroy = function() {
         if (this.editWidget) {
             this.editWidget.destroy();
+        }
+        
+        if (this.tableFilter) {
+            this.tableFilter.destroy();
         }
         
     };

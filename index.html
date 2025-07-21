@@ -21,6 +21,11 @@
     <script src="src/widgets/EditWidget.js"></script>
     <script src="src/widgets/TableWidget.js"></script>
     
+    <!-- 筛选模块 -->
+    <script src="src/modules/FilterManager.js"></script>
+    <script src="src/modules/TableFilter.js"></script>
+    <script src="src/widgets/FilterPanel.js"></script>
+    
     <!-- 核心模块 -->
     <script src="src/modules/renderer.js"></script>
     <script src="src/modules/database.js"></script>
@@ -39,7 +44,7 @@
             <span id="status-text">正在加载...</span>
         </div>
         <div class="info">
-            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化 - 点击列头: 升序→降序→原始</span>
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化 - 💡操作提示: 列头左侧1/4排序，右侧1/4筛选</span>
         </div>
     </div>
 

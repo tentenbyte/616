@@ -1077,6 +1077,191 @@
     };
 
     /**
+     * 获取筛选后的行索引数组
+     * 为FilterManager提供的通用筛选接口
+     * @param {Object} filterConditions 筛选条件对象
+     * @returns {Array} 符合条件的行索引数组
+     */
+    SimpleColumnarDB.prototype.getFilteredRowIndices = function(filterConditions) {
+        if (!filterConditions || Object.keys(filterConditions).length === 0) {
+            // 无筛选条件时返回所有行
+            var allRows = [];
+            for (var i = 0; i < this.totalRows; i++) {
+                allRows.push(i);
+            }
+            return allRows;
+        }
+        
+        var result = [];
+        
+        // 初始化为所有行
+        for (var i = 0; i < this.totalRows; i++) {
+            result.push(i);
+        }
+        
+        // 依次应用每个筛选条件（取交集）
+        for (var columnIndex in filterConditions) {
+            if (filterConditions.hasOwnProperty(columnIndex)) {
+                var filterCondition = filterConditions[columnIndex];
+                result = this.applyColumnFilter(result, parseInt(columnIndex), filterCondition);
+            }
+        }
+        
+        return result;
+    };
+
+    /**
+     * 对行索引数组应用列筛选条件
+     * @param {Array} rowIndices 待筛选的行索引数组
+     * @param {number} columnIndex 列索引
+     * @param {Object} filterCondition 筛选条件
+     * @returns {Array} 筛选后的行索引数组
+     */
+    SimpleColumnarDB.prototype.applyColumnFilter = function(rowIndices, columnIndex, filterCondition) {
+        if (!filterCondition || columnIndex >= this.maxCols) {
+            return rowIndices;
+        }
+        
+        var result = [];
+        
+        switch (filterCondition.type) {
+            case 'values':
+                // 多选值筛选
+                result = this.filterRowsByValues(rowIndices, columnIndex, filterCondition.selectedItems);
+                break;
+            case 'text':
+                // 文本搜索筛选
+                result = this.filterRowsByText(rowIndices, columnIndex, filterCondition.text);
+                break;
+            case 'number':
+                // 数值范围筛选
+                result = this.filterRowsByNumberRange(rowIndices, columnIndex, filterCondition.min, filterCondition.max);
+                break;
+            default:
+                result = rowIndices;
+        }
+        
+        return result;
+    };
+
+    /**
+     * 按值筛选行
+     */
+    SimpleColumnarDB.prototype.filterRowsByValues = function(rowIndices, columnIndex, selectedValues) {
+        if (!selectedValues || selectedValues.length === 0) {
+            return rowIndices;
+        }
+        
+        var result = [];
+        var selectedSet = {};
+        
+        // 构建快速查找集合
+        for (var i = 0; i < selectedValues.length; i++) {
+            selectedSet[selectedValues[i]] = true;
+        }
+        
+        // 筛选行
+        for (var i = 0; i < rowIndices.length; i++) {
+            var rowIndex = rowIndices[i];
+            var cellValue = this.getValue(rowIndex, columnIndex);
+            var displayValue = cellValue === null || cellValue === undefined ? '' : String(cellValue);
+            
+            if (selectedSet[displayValue]) {
+                result.push(rowIndex);
+            }
+        }
+        
+        return result;
+    };
+
+    /**
+     * 按文本搜索筛选行
+     */
+    SimpleColumnarDB.prototype.filterRowsByText = function(rowIndices, columnIndex, searchText) {
+        if (!searchText) {
+            return rowIndices;
+        }
+        
+        var result = [];
+        var lowerSearchText = searchText.toLowerCase();
+        
+        for (var i = 0; i < rowIndices.length; i++) {
+            var rowIndex = rowIndices[i];
+            var cellValue = this.getValue(rowIndex, columnIndex);
+            var displayValue = cellValue === null || cellValue === undefined ? '' : String(cellValue).toLowerCase();
+            
+            if (displayValue.indexOf(lowerSearchText) >= 0) {
+                result.push(rowIndex);
+            }
+        }
+        
+        return result;
+    };
+
+    /**
+     * 按数值范围筛选行
+     */
+    SimpleColumnarDB.prototype.filterRowsByNumberRange = function(rowIndices, columnIndex, min, max) {
+        var result = [];
+        
+        for (var i = 0; i < rowIndices.length; i++) {
+            var rowIndex = rowIndices[i];
+            var cellValue = this.getValue(rowIndex, columnIndex);
+            var numValue = parseFloat(cellValue);
+            
+            if (!isNaN(numValue)) {
+                var valid = true;
+                if (min !== undefined && numValue < min) valid = false;
+                if (max !== undefined && numValue > max) valid = false;
+                
+                if (valid) {
+                    result.push(rowIndex);
+                }
+            }
+        }
+        
+        return result;
+    };
+
+    /**
+     * 获取列的唯一值（为筛选面板提供数据）
+     * @param {number} columnIndex 列索引
+     * @returns {Array} 唯一值数组（已排序）
+     */
+    SimpleColumnarDB.prototype.getColumnUniqueValues = function(columnIndex) {
+        if (columnIndex >= this.maxCols) {
+            return [];
+        }
+        
+        var uniqueValues = {};
+        var result = [];
+        
+        for (var i = 0; i < this.totalRows; i++) {
+            var cellValue = this.getValue(i, columnIndex);
+            var displayValue = cellValue === null || cellValue === undefined ? '' : String(cellValue);
+            
+            if (!uniqueValues[displayValue]) {
+                uniqueValues[displayValue] = true;
+                result.push(displayValue);
+            }
+        }
+        
+        // 排序唯一值
+        result.sort(function(a, b) {
+            // 数字排序
+            var numA = parseFloat(a);
+            var numB = parseFloat(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            // 字符串排序
+            return a.localeCompare(b);
+        });
+        
+        return result;
+    };
+
+    /**
      * 获取当前排序状态
      */
     SimpleColumnarDB.prototype.getSortStatus = function() {

@@ -450,33 +450,44 @@
                 // 生成列标题（A, B, C...）
                 var colLabel = String.fromCharCode(65 + col);
                 
-                // 绘制列标题文本（完美垂直居中）
+                // 🎨 绘制区域分隔线（中央垂直线）
+                var separatorX = x + this.config.cellWidth / 2;
+                this.ctx.strokeStyle = '#e8e8e8';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(separatorX, 8);
+                this.ctx.lineTo(separatorX, this.config.headerHeight - 8);
+                this.ctx.stroke();
+                
+                // 绘制列标题文本（居中显示）
                 this.ctx.fillText(
                     colLabel,
                     x + this.config.cellWidth / 2,
                     this.config.headerHeight / 2
                 );
                 
+                // 🔧 左侧排序区域（左1/4）- 无背景，只有箭头
+                
                 // 绘制排序指示器（使用松散比较兼容第0列）
                 if (sortStatus && sortStatus.isSorted && sortStatus.column == col) {
-                    // 🔧 调整位置：与 ↑↓ 符号保持一致的位置
-                    var arrowX = x + 8 + 5;  // 左侧位置，稍微右移5px居中符号
-                    var arrowY = this.config.headerHeight / 2;  // 垂直居中
-                    var arrowSize = 5;  // 稍微调小一点
+                    // 排序箭头位置：左侧1/4区域中央
+                    var sortArrowX = x + this.config.cellWidth / 8;  // 左1/4区域的中心
+                    var sortArrowY = this.config.headerHeight / 2;
+                    var arrowSize = 4;
                     
-                    this.ctx.fillStyle = '#007bff';
+                    this.ctx.fillStyle = '#2196F3';  // 漂亮的蓝色箭头
                     this.ctx.beginPath();
                     
                     if (sortStatus.ascending) {
-                        // 向上箭头 (升序) ▲ - 调整为更紧凑的三角形
-                        this.ctx.moveTo(arrowX, arrowY - arrowSize + 1);
-                        this.ctx.lineTo(arrowX - arrowSize, arrowY + arrowSize - 1);
-                        this.ctx.lineTo(arrowX + arrowSize, arrowY + arrowSize - 1);
+                        // 向上箭头 (升序) ▲
+                        this.ctx.moveTo(sortArrowX, sortArrowY - arrowSize);
+                        this.ctx.lineTo(sortArrowX - arrowSize, sortArrowY + arrowSize);
+                        this.ctx.lineTo(sortArrowX + arrowSize, sortArrowY + arrowSize);
                     } else {
-                        // 向下箭头 (降序) ▼ - 调整为更紧凑的三角形
-                        this.ctx.moveTo(arrowX, arrowY + arrowSize - 1);
-                        this.ctx.lineTo(arrowX - arrowSize, arrowY - arrowSize + 1);
-                        this.ctx.lineTo(arrowX + arrowSize, arrowY - arrowSize + 1);
+                        // 向下箭头 (降序) ▼
+                        this.ctx.moveTo(sortArrowX, sortArrowY + arrowSize);
+                        this.ctx.lineTo(sortArrowX - arrowSize, sortArrowY - arrowSize);
+                        this.ctx.lineTo(sortArrowX + arrowSize, sortArrowY - arrowSize);
                     }
                     
                     this.ctx.closePath();
@@ -485,19 +496,23 @@
                     // 恢复文本颜色
                     this.ctx.fillStyle = this.config.headerTextColor;
                 } else {
-                    // 无排序状态时，显示淡灰色的可点击提示（左侧）
-                    var hintX = x + 8;  // 移到左侧，距离左边缘8px
-                    var hintY = this.config.headerHeight / 2;
+                    // 无排序状态时，显示淡灰色排序提示（左1/4区域）
+                    var sortHintX = x + this.config.cellWidth / 8;
+                    var sortHintY = this.config.headerHeight / 2;
                     
-                    this.ctx.fillStyle = '#cccccc';
-                    this.ctx.font = '10px ' + this.config.fontFamily;
+                    this.ctx.fillStyle = '#2196F3';  // 漂亮的蓝色排序提示
+                    this.ctx.font = '8px ' + this.config.fontFamily;
                     this.ctx.textAlign = 'center';
-                    this.ctx.fillText('⇅', hintX, hintY);
+                    this.ctx.fillText('⇅', sortHintX, sortHintY);
                     
                     // 恢复文本样式
                     this.ctx.fillStyle = this.config.headerTextColor;
                     this.ctx.font = this.config.fontSize + 'px ' + this.config.fontFamily;
                 }
+                
+                // 🎨 右侧筛选区域（右1/4）- 无背景，只有箭头
+                // 直接绘制筛选箭头
+                this.drawFilterArrow(col, x);
                 
                 // 🚫 完全移除列头边框 - 保持纯净无边框设计
             }
@@ -515,6 +530,47 @@
                 );
             }
         }
+    };
+
+    /**
+     * 绘制筛选箭头
+     * @param {number} columnIndex 列索引
+     * @param {number} columnX 列的X坐标
+     */
+    TableRenderer.prototype.drawFilterArrow = function(columnIndex, columnX) {
+        // 检查是否有筛选系统
+        if (!this.tableCore || !this.tableCore.tableFilter) {
+            return;
+        }
+        
+        var tableFilter = this.tableCore.tableFilter;
+        
+        // 🎨 筛选箭头位置：右侧1/4区域中央（与排序箭头一致的样式）
+        var filterArrowX = columnX + this.config.cellWidth * 7 / 8;  // 右1/4区域的中心
+        var filterArrowY = this.config.headerHeight / 2;
+        var arrowSize = 4;  // 与排序箭头相同的大小
+        
+        // 检查该列是否有筛选条件
+        var hasFilter = tableFilter.hasColumnFilter(columnIndex);
+        var isHovered = tableFilter.getHoveredFilterArrow() === columnIndex;
+        
+        // 设置箭头颜色 - 漂亮的蓝色三角形
+        var arrowColor = '#2196F3';  // 漂亮的蓝色筛选箭头
+        
+        // 🎨 绘制筛选三角形箭头 ▼（与排序箭头相同样式）
+        this.ctx.fillStyle = arrowColor;
+        this.ctx.beginPath();
+        
+        // 向下的三角形 - 与排序箭头相同的绘制方式
+        this.ctx.moveTo(filterArrowX, filterArrowY + arrowSize);
+        this.ctx.lineTo(filterArrowX - arrowSize, filterArrowY - arrowSize);
+        this.ctx.lineTo(filterArrowX + arrowSize, filterArrowY - arrowSize);
+        
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        // 恢复原有的文本颜色
+        this.ctx.fillStyle = this.config.headerTextColor;
     };
 
     TableRenderer.prototype.drawCells = function(tableData) {
@@ -883,6 +939,7 @@
 
     /**
      * 检查点击是否在列头区域，返回列索引
+     * 只响应列头左侧1/4区域的点击以触发排序
      */
     TableRenderer.prototype.getColumnHeaderFromPixel = function(x, y) {
         console.log('🔍 检查列头点击位置:', { x: x, y: y, rowHeaderWidth: this.config.rowHeaderWidth, headerHeight: this.config.headerHeight });
@@ -903,12 +960,31 @@
         var adjustedX = x + this.scrollX;
         var col = Math.floor((adjustedX - this.config.rowHeaderWidth) / this.config.cellWidth);
         
-        console.log('🧮 计算结果:', { adjustedX: adjustedX, col: col, scrollX: this.scrollX, cellWidth: this.config.cellWidth });
+        // 计算在该列内的相对位置
+        var colStartX = this.config.rowHeaderWidth + col * this.config.cellWidth - this.scrollX;
+        var relativeX = x - colStartX;
+        var quarterWidth = this.config.cellWidth / 4;
+        
+        console.log('🧮 计算结果:', { 
+            adjustedX: adjustedX, 
+            col: col, 
+            scrollX: this.scrollX, 
+            cellWidth: this.config.cellWidth,
+            colStartX: colStartX,
+            relativeX: relativeX,
+            quarterWidth: quarterWidth
+        });
         
         // 确保列索引有效
         if (col >= 0 && col < 100) { // 最大100列
-            console.log('✅ 返回列索引:', col);
-            return col;
+            // 检查是否点击在列头左侧1/4区域内
+            if (relativeX >= 0 && relativeX <= quarterWidth) {
+                console.log('✅ 点击在左侧1/4区域，返回列索引:', col);
+                return col;
+            } else {
+                console.log('❌ 点击不在左侧1/4区域，relativeX:', relativeX, 'quarterWidth:', quarterWidth);
+                return -1;
+            }
         }
         
         console.log('❌ 列索引无效');
