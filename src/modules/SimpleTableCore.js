@@ -62,21 +62,7 @@
             maxSize: 100
         };
         
-        // IndexedDB持久化
-        this.tableId = 'default_table';
-        this.debouncedSave = global.Helpers.debounce(this.saveToIndexedDB.bind(this), 2000);
-        
-        try {
-            this.dbManager = new global.DatabaseManager(config.getDatabaseConfig(), this.eventManager);
-            if (this.dbManager && typeof this.dbManager.initialize === 'function') {
-                this.dbManager.initialize().catch(function(error) {
-                    console.warn('DatabaseManager初始化失败，将使用内存模式:', error);
-                });
-            }
-        } catch (error) {
-            console.warn('DatabaseManager创建失败，将使用内存模式:', error);
-            this.dbManager = null;
-        }
+        // IndexedDB持久化 - 由TrueColumnarStorage内置处理
         
     }
 
@@ -142,8 +128,7 @@
             this.db.setValue(row, col, value);
             this.state.isDirty = true;
             
-            // 触发保存和事件
-            this.debouncedSave();
+            // 数据已自动持久化到TrueColumnarStorage
             this.eventManager.emit(global.EVENTS.TABLE_DATA_CHANGED, {
                 row: row, col: col, value: value
             });
@@ -346,59 +331,6 @@
 
     // ========================================
     // 数据持久化
-    // ========================================
-    
-    /**
-     * 保存到IndexedDB
-     */
-    SimpleTableCore.prototype.saveToIndexedDB = function() {
-        if (!this.state.isDirty || !this.dbManager) return;
-        
-        var self = this;
-        
-        // 构建要保存的数据
-        var tableData = {
-            id: this.tableId,
-            name: 'Default Table',
-            created: new Date().toISOString(),
-            data: this.db.exportData()
-        };
-        
-        // 保存数据
-        this.dbManager.saveTable(tableData).then(function() {
-            self.state.isDirty = false;
-            if (self.eventManager && global.EVENTS) {
-                self.eventManager.emit(global.EVENTS.DB_SAVE_SUCCESS, { tableId: self.tableId });
-            }
-        }).catch(function(error) {
-            console.error('保存失败:', error);
-        });
-    };
-
-    /**
-     * 从IndexedDB加载
-     */
-    SimpleTableCore.prototype.loadFromIndexedDB = function() {
-        if (!this.dbManager) {
-            return;
-        }
-        
-        var self = this;
-        
-        this.dbManager.getTable(this.tableId).then(function(tableData) {
-            if (tableData && tableData.data) {
-                self.db.importData(tableData.data);
-                self.state.isDirty = false;
-                self.render();
-                if (self.eventManager && global.EVENTS) {
-                    self.eventManager.emit(global.EVENTS.DB_LOAD_SUCCESS, { tableId: self.tableId });
-                }
-            } else {
-            }
-        }).catch(function(error) {
-            console.error('加载失败，将使用默认数据:', error);
-        });
-    };
 
     // ========================================
     // 渲染控制
@@ -432,7 +364,6 @@
         this.bindCanvasEvents();
         
         this.selectCell(0, 0);
-        this.loadFromIndexedDB();
         this.render();
         this.state.isInitialized = true;
         
