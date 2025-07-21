@@ -85,6 +85,8 @@ input#edit-global-input,
     border: 2px solid #3498db;
     outline: none;
     padding: 0 3px;
+    text-indent: 0;
+    vertical-align: top;
     margin: 0;
     z-index: 1000;
     font-size: 13px;

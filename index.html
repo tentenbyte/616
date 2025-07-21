@@ -257,7 +257,7 @@
                     var canvas = document.getElementById('tableCanvas');
                     var canvasRect = canvas.getBoundingClientRect();
                     var x = canvasRect.left + 50;
-                    var y = canvasRect.top + 35 - 1;
+                    var y = canvasRect.top + 35 - 2;
                     
                     globalInput.style.left = x + 'px';
                     globalInput.style.top = y + 'px';
@@ -305,7 +305,7 @@
                         var row = Math.floor((clickY - headerHeight) / cellHeight);
                         
                         var newX = canvasRect.left + rowHeaderWidth + col * cellWidth;
-                        var newY = canvasRect.top + headerHeight + row * cellHeight - 1;
+                        var newY = canvasRect.top + headerHeight + row * cellHeight - 2;
                         
                         globalInput.style.left = newX + 'px';
                         globalInput.style.top = newY + 'px';
