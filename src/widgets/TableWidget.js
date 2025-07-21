@@ -132,6 +132,13 @@
             }
         });
         
+        // 🆕 Canvas鼠标移动事件 - 检测添加行按钮悬停
+        this.canvas.addEventListener('mousemove', function(e) {
+            if (self.state.allowFocus) {
+                self.handleCanvasMouseMove(e);
+            }
+        });
+        
     };
     
     /**
@@ -143,6 +150,12 @@
             var col = this.renderer.getColumnHeaderFromPixel(e.offsetX, e.offsetY);
             if (col >= 0) {
                 this.handleColumnHeaderClick(col);
+                return;
+            }
+            
+            // 🆕 检查是否点击了添加行按钮
+            if (this.renderer.isAddRowButtonClicked(e.offsetX, e.offsetY)) {
+                this.handleAddRowButtonClick();
                 return;
             }
             
@@ -299,6 +312,49 @@
             reference: this.getCellReference(row, col)
         });
         
+    };
+    
+    /**
+     * 🆕 处理添加行按钮点击
+     */
+    TableWidget.prototype.handleAddRowButtonClick = function() {
+        try {
+            console.log('🆕 点击添加行按钮');
+            
+            // 调用TableCore的添加行方法
+            if (this.tableCore && this.tableCore.addRow) {
+                this.tableCore.addRow();
+            } else if (this.tableCore && this.tableCore.db && this.tableCore.db.addRow) {
+                // 直接调用数据库的添加行方法
+                this.tableCore.db.addRow();
+                // 触发重新渲染
+                this.render();
+            }
+            
+            // 发出添加行事件
+            this.eventManager.emit(global.EVENTS.TABLE_ROW_ADDED, {
+                rowCount: this.tableCore.db ? this.tableCore.db.currentRows : 0
+            });
+            
+        } catch (error) {
+            console.error('处理添加行按钮点击失败:', error);
+        }
+    };
+    
+    /**
+     * 🆕 处理Canvas鼠标移动
+     */
+    TableWidget.prototype.handleCanvasMouseMove = function(e) {
+        try {
+            // 检查鼠标是否悬停在添加行按钮上
+            if (this.renderer && this.renderer.isAddRowButtonHover) {
+                var isHovered = this.renderer.isAddRowButtonHover(e.offsetX, e.offsetY);
+                // 更新鼠标样式
+                this.canvas.style.cursor = isHovered ? 'pointer' : 'default';
+            }
+        } catch (error) {
+            console.error('处理Canvas鼠标移动失败:', error);
+        }
     };
     
     /**

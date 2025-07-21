@@ -51,6 +51,10 @@
             lastRenderTime: 0
         };
         
+        // 🆕 添加行按钮状态
+        this.isAddRowButtonHovered = false;
+        this.addRowButtonRect = null;
+        
         
         // 绑定方法
         this.render = global.Helpers.throttle(this.render.bind(this), 16); // 60fps
@@ -530,6 +534,79 @@
                 );
             }
         }
+        
+        // 🆕 绘制添加行按钮（在最后一行数据的下方）
+        this.drawAddRowButton(tableData);
+    };
+
+    /**
+     * 🆕 绘制添加行按钮
+     * @param {Object} tableData 表格数据
+     */
+    TableRenderer.prototype.drawAddRowButton = function(tableData) {
+        if (!tableData) return;
+        
+        // 获取当前数据的实际行数
+        var currentRows = tableData.currentRows || tableData.totalRows || 0;
+        
+        // 计算添加按钮的位置（在最后一行数据的下一行）
+        var buttonY = this.config.headerHeight + currentRows * this.config.cellHeight - this.scrollY;
+        
+        // 检查按钮是否在可见区域内
+        var canvasHeight = this.canvas.clientHeight;
+        if (buttonY < this.config.headerHeight || buttonY > canvasHeight) {
+            return; // 不在可见区域，跳过绘制
+        }
+        
+        // 按钮尺寸和位置
+        var buttonSize = Math.min(this.config.cellHeight * 0.6, this.config.rowHeaderWidth * 0.6);
+        var buttonX = (this.config.rowHeaderWidth - buttonSize) / 2;
+        var buttonCenterX = this.config.rowHeaderWidth / 2;
+        var buttonCenterY = buttonY + this.config.cellHeight / 2;
+        
+        // 绘制按钮背景（圆角矩形）
+        this.ctx.fillStyle = '#f8f9fa';
+        this.ctx.strokeStyle = '#dee2e6';
+        this.ctx.lineWidth = 1;
+        
+        this.ctx.beginPath();
+        // 🔧 Firefox 52兼容 - 使用简单矩形替代roundRect
+        this.ctx.rect(buttonX, buttonY + (this.config.cellHeight - buttonSize) / 2, buttonSize, buttonSize);
+        this.ctx.fill();
+        this.ctx.stroke();
+        
+        // 绘制"+"号
+        this.ctx.fillStyle = '#6c757d';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = '#6c757d';
+        
+        var crossSize = buttonSize * 0.3;
+        this.ctx.beginPath();
+        // 水平线
+        this.ctx.moveTo(buttonCenterX - crossSize/2, buttonCenterY);
+        this.ctx.lineTo(buttonCenterX + crossSize/2, buttonCenterY);
+        // 垂直线
+        this.ctx.moveTo(buttonCenterX, buttonCenterY - crossSize/2);
+        this.ctx.lineTo(buttonCenterX, buttonCenterY + crossSize/2);
+        this.ctx.stroke();
+        
+        // 悬停效果（如果鼠标悬停在按钮上）
+        if (this.isAddRowButtonHovered) {
+            this.ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+            this.ctx.beginPath();
+            // 🔧 Firefox 52兼容 - 使用简单矩形替代roundRect
+            this.ctx.rect(buttonX, buttonY + (this.config.cellHeight - buttonSize) / 2, buttonSize, buttonSize);
+            this.ctx.fill();
+        }
+        
+        // 存储按钮区域信息，供点击检测使用
+        this.addRowButtonRect = {
+            x: buttonX,
+            y: buttonY + (this.config.cellHeight - buttonSize) / 2,
+            width: buttonSize,
+            height: buttonSize,
+            row: currentRows // 要插入的行位置
+        };
     };
 
     /**
@@ -1024,6 +1101,47 @@
         var width = this.ctx.measureText(text).width;
         this.measureCache[cacheKey] = width;
         return width;
+    };
+
+    /**
+     * 🆕 检测点击是否在添加行按钮上
+     * @param {number} x 点击的X坐标
+     * @param {number} y 点击的Y坐标
+     * @returns {boolean} 是否点击了添加行按钮
+     */
+    TableRenderer.prototype.isAddRowButtonClicked = function(x, y) {
+        if (!this.addRowButtonRect) return false;
+        
+        return x >= this.addRowButtonRect.x && 
+               x <= this.addRowButtonRect.x + this.addRowButtonRect.width &&
+               y >= this.addRowButtonRect.y && 
+               y <= this.addRowButtonRect.y + this.addRowButtonRect.height;
+    };
+    
+    /**
+     * 🆕 检测鼠标是否悬停在添加行按钮上
+     * @param {number} x 鼠标的X坐标
+     * @param {number} y 鼠标的Y坐标
+     * @returns {boolean} 是否悬停在添加行按钮上
+     */
+    TableRenderer.prototype.isAddRowButtonHover = function(x, y) {
+        if (!this.addRowButtonRect) return false;
+        
+        var isHovered = x >= this.addRowButtonRect.x && 
+                       x <= this.addRowButtonRect.x + this.addRowButtonRect.width &&
+                       y >= this.addRowButtonRect.y && 
+                       y <= this.addRowButtonRect.y + this.addRowButtonRect.height;
+        
+        // 更新悬停状态
+        if (isHovered !== this.isAddRowButtonHovered) {
+            this.isAddRowButtonHovered = isHovered;
+            // 触发重新渲染以显示悬停效果
+            if (this.tableCore && this.tableCore.render) {
+                this.tableCore.render();
+            }
+        }
+        
+        return isHovered;
     };
 
     TableRenderer.prototype.getViewport = function() {
