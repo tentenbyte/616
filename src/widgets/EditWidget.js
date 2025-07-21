@@ -182,7 +182,7 @@
             var tableConfig = this.config.getTableConfig();
             
             var x = canvasRect.left + tableConfig.rowHeaderWidth + col * tableConfig.cellWidth;
-            var y = canvasRect.top + tableConfig.headerHeight + row * tableConfig.cellHeight - 2;
+            var y = canvasRect.top + tableConfig.headerHeight + row * tableConfig.cellHeight;
             
             this.state.globalInput.style.left = x + 'px';
             this.state.globalInput.style.top = y + 'px';
@@ -303,7 +303,26 @@
                 e.preventDefault();
                 break;
             case 'Escape':
-                this.cancelEdit();
+                if (cursorHidden) {
+                    // 光标已隐藏：取消编辑并恢复原值
+                    this.cancelEdit();
+                } else {
+                    // 光标显示：保存当前内容，隐藏光标，切换回导航模式
+                    this.saveCurrentValue();
+                    
+                    // 确保光标完全隐藏并切换到导航模式
+                    var self = this;
+                    setTimeout(function() {
+                        self.state.globalInput.style.caretColor = 'transparent';
+                        self.state.globalInput.dataset.isFirstClick = 'true';
+                        self.state.globalInput.focus(); // 确保input保持焦点以接收键盘事件
+                        
+                        // 触发表格重新渲染以显示保存的内容
+                        if (self.tableCore && self.tableCore.render) {
+                            self.tableCore.render();
+                        }
+                    }, 10);
+                }
                 e.preventDefault();
                 break;
             case 'ArrowUp':
