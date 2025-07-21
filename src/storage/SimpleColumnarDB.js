@@ -1228,35 +1228,158 @@
      * @param {number} columnIndex 列索引
      * @returns {Array} 唯一值数组（已排序）
      */
+    /**
+     * 🚀 基数排序获取列的唯一值（去重+排序一次完成）
+     * 专门针对uint32 ArrayBuffer优化的高性能算法
+     * 
+     * @param {number} columnIndex 列索引
+     * @returns {Array} 排序后的唯一值数组
+     * 
+     * 性能特点：
+     * - 时间复杂度：O(n + 4k) ≈ O(n + k)
+     * - 空间复杂度：O(k)  
+     * - 无range限制：支持全uint32范围
+     * - 一次完成去重+排序，无需额外排序步骤
+     */
     SimpleColumnarDB.prototype.getColumnUniqueValues = function(columnIndex) {
         if (columnIndex >= this.maxCols) {
             return [];
         }
         
-        var uniqueValues = {};
-        var result = [];
+        // 🚀 使用基数排序算法
+        return this.getColumnUniqueValuesRadixSort(columnIndex);
+    };
+    
+    /**
+     * 🎯 基数排序实现：uint32去重+排序
+     */
+    SimpleColumnarDB.prototype.getColumnUniqueValuesRadixSort = function(columnIndex) {
+        var rawData = this.columns[columnIndex];  // Uint32Array直接访问
         
+        // 🎯 第一步：使用Set进行O(n)时间去重
+        var uniqueSet = new Set();
         for (var i = 0; i < this.totalRows; i++) {
-            var cellValue = this.getValue(i, columnIndex);
-            var displayValue = cellValue === null || cellValue === undefined ? '' : String(cellValue);
-            
-            if (!uniqueValues[displayValue]) {
-                uniqueValues[displayValue] = true;
-                result.push(displayValue);
+            if (rawData[i] !== 0) {  // 跳过空值
+                uniqueSet.add(rawData[i]);
             }
         }
         
-        // 排序唯一值
-        result.sort(function(a, b) {
-            // 数字排序
-            var numA = parseFloat(a);
-            var numB = parseFloat(b);
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return numA - numB;
+        if (uniqueSet.size === 0) return [];
+        if (uniqueSet.size === 1) {
+            // 单个值直接解码返回
+            return [this.decode(Array.from(uniqueSet)[0], columnIndex)];
+        }
+        
+        // 🚀 第二步：基数排序（专门优化uint32）
+        var sortedUint32Values = this.radixSortUint32(Array.from(uniqueSet));
+        
+        // 🎯 第三步：解码为显示值
+        var result = [];
+        for (var i = 0; i < sortedUint32Values.length; i++) {
+            result.push(this.decode(sortedUint32Values[i], columnIndex));
+        }
+        
+        return result;
+    };
+    
+    /**
+     * 🎯 基于指定行索引获取列的唯一值（用于级联筛选）
+     * @param {number} columnIndex 列索引
+     * @param {Array} rowIndices 指定的行索引数组
+     * @returns {Array} 排序后的唯一值数组
+     */
+    SimpleColumnarDB.prototype.getColumnUniqueValuesFromRows = function(columnIndex, rowIndices) {
+        if (columnIndex >= this.maxCols || !rowIndices || rowIndices.length === 0) {
+            return [];
+        }
+        
+        var rawData = this.columns[columnIndex];  // Uint32Array直接访问
+        
+        // 🎯 第一步：使用Set进行O(n)时间去重
+        var uniqueSet = new Set();
+        for (var i = 0; i < rowIndices.length; i++) {
+            var rowIndex = rowIndices[i];
+            if (rowIndex >= 0 && rowIndex < this.maxRows && rawData[rowIndex] !== 0) {
+                uniqueSet.add(rawData[rowIndex]);
             }
-            // 字符串排序
-            return a.localeCompare(b);
-        });
+        }
+        
+        if (uniqueSet.size === 0) return [];
+        if (uniqueSet.size === 1) {
+            // 单个值直接解码返回
+            return [this.decode(Array.from(uniqueSet)[0], columnIndex)];
+        }
+        
+        // 🚀 第二步：基数排序（专门优化uint32）
+        var sortedUint32Values = this.radixSortUint32(Array.from(uniqueSet));
+        
+        // 🎯 第三步：解码为显示值
+        var result = [];
+        for (var i = 0; i < sortedUint32Values.length; i++) {
+            result.push(this.decode(sortedUint32Values[i], columnIndex));
+        }
+        
+        return result;
+    };
+    
+    /**
+     * 🔥 uint32专用基数排序算法
+     * 4轮排序，每轮处理8位（1个字节）
+     * 
+     * @param {Array} values uint32值数组
+     * @returns {Array} 排序后的uint32值数组
+     */
+    SimpleColumnarDB.prototype.radixSortUint32 = function(values) {
+        if (values.length <= 1) return values;
+        
+        var len = values.length;
+        
+        // 🚀 使用TypedArray提升性能
+        var current = new Uint32Array(values);
+        var temp = new Uint32Array(len);
+        
+        // 🎯 4轮基数排序：处理uint32的4个字节
+        for (var shift = 0; shift < 32; shift += 8) {
+            var counts = new Uint32Array(256);  // 256个桶的计数器
+            
+            // 🔥 第一遍：统计每个桶的元素数量
+            for (var i = 0; i < len; i++) {
+                var bucketIndex = (current[i] >>> shift) & 0xFF;
+                counts[bucketIndex]++;
+            }
+            
+            // 🔥 第二遍：计算累积位置（前缀和）
+            for (var i = 1; i < 256; i++) {
+                counts[i] += counts[i - 1];
+            }
+            
+            // 🔥 第三遍：从右到左稳定排序
+            for (var i = len - 1; i >= 0; i--) {
+                var bucketIndex = (current[i] >>> shift) & 0xFF;
+                temp[--counts[bucketIndex]] = current[i];
+            }
+            
+            // 🔄 交换current和temp数组
+            var swap = current;
+            current = temp;
+            temp = swap;
+        }
+        
+        // 📊 性能统计（开发模式）
+        if (typeof console !== 'undefined' && console.log && len > 100) {
+            var performanceMsg = '🚀 基数排序完成 - 处理了 ' + len + ' 个唯一值，4轮排序，总操作数约: ' + (len * 4);
+            // console.log(performanceMsg);  // 可选：启用性能日志
+        }
+        
+        var result = Array.from(current);
+        
+        // 🔧 开发模式：验证排序正确性
+        if (typeof console !== 'undefined' && console.assert) {
+            for (var i = 1; i < result.length; i++) {
+                console.assert(result[i-1] <= result[i], 
+                    '基数排序错误：位置 ' + (i-1) + '(' + result[i-1] + ') > 位置 ' + i + '(' + result[i] + ')');
+            }
+        }
         
         return result;
     };

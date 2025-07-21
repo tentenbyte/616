@@ -61,6 +61,11 @@
             'global': this.applyGlobalSearch.bind(this)
         };
         
+        // 🎯 筛选历史栈系统
+        this.filterStack = [];        // 筛选历史栈 - 每层是一个Uint32Array行索引
+        this.filterOrder = [];        // 筛选列顺序 [col0, col1, col2, ...]
+        this.filterConditions = {};   // 每列的筛选条件缓存 {col0: condition0, ...}
+        
         this.initialize();
     }
 
@@ -72,7 +77,56 @@
      * 初始化筛选管理器
      */
     FilterManager.prototype.initialize = function() {
+        this.initializeFilterStack();
         this.bindEvents();
+    };
+    
+    /**
+     * 🎯 初始化筛选历史栈
+     */
+    FilterManager.prototype.initializeFilterStack = function() {
+        if (!this.db) {
+            console.log('⚠️ 数据库未就绪，跳过筛选栈初始化');
+            return;
+        }
+        
+        if (this.db.totalRows === 0) {
+            console.log('⚠️ 数据库无数据，跳过筛选栈初始化');
+            this.filterStack = [];
+            this.filterOrder = [];
+            this.filterConditions = {};
+            return;
+        }
+        
+        // Level 0: 所有原始行索引
+        var allRows = [];
+        for (var i = 0; i < this.db.totalRows; i++) {
+            allRows.push(i);
+        }
+        
+        this.filterStack = [new Uint32Array(allRows)];
+        this.filterOrder = [];
+        this.filterConditions = {};
+        
+        console.log('🎯 筛选栈初始化完成:', {
+            totalRows: this.db.totalRows,
+            stackLevels: this.filterStack.length,
+            level0Rows: this.filterStack[0].length
+        });
+    };
+    
+    /**
+     * 🔧 确保筛选栈已初始化（延迟初始化）
+     */
+    FilterManager.prototype.ensureFilterStackInitialized = function() {
+        if (!this.db) return false;
+        
+        if (this.filterStack.length === 0 && this.db.totalRows > 0) {
+            console.log('🔧 延迟初始化筛选栈...');
+            this.initializeFilterStack();
+        }
+        
+        return this.filterStack.length > 0;
     };
     
     /**
@@ -100,15 +154,31 @@
      */
     FilterManager.prototype.setColumnFilter = function(columnIndex, filterCondition) {
         if (filterCondition === null || filterCondition === undefined) {
-            // 清除筛选
+            // 🗑️ 清除筛选 - 使用栈系统
             delete this.state.columnFilters[columnIndex];
+            this.removeFilterLevel(columnIndex);
         } else {
+            // 🎯 设置筛选 - 使用栈系统
             this.state.columnFilters[columnIndex] = filterCondition;
+            
+            // 获取该列筛选前的有效行索引
+            var effectiveRowIndices = this.getEffectiveRowsForColumn(columnIndex);
+            
+            // 应用筛选条件
+            var strategy = this.filterStrategies[filterCondition.type];
+            if (strategy) {
+                var filteredRowIndices = strategy(effectiveRowIndices, columnIndex, filterCondition);
+                
+                // 更新筛选栈
+                this.pushOrUpdateFilterLevel(columnIndex, filterCondition, filteredRowIndices);
+            }
         }
         
         this.updateActiveFilterState();
         this.addToHistory('columnFilter', { columnIndex: columnIndex, condition: filterCondition });
-        this.applyAllFilters();
+        
+        // 🎯 应用最新的筛选结果到视图
+        this.applyLatestFilterResult();
     };
     
     /**
@@ -147,6 +217,29 @@
      */
     FilterManager.prototype.clearColumnFilter = function(columnIndex) {
         this.setColumnFilter(columnIndex, null);
+    };
+    
+    /**
+     * 🎯 应用最新的筛选结果到视图
+     */
+    FilterManager.prototype.applyLatestFilterResult = function() {
+        if (!this.db || this.filterStack.length === 0) return;
+        
+        // 获取栈顶的筛选结果
+        var latestLevel = this.filterStack.length - 1;
+        var latestRowIndices = Array.from(this.filterStack[latestLevel]);
+        
+        // 应用到数据库视图
+        this.applyFilterResult(latestRowIndices);
+        
+        // 通知筛选完成
+        this.notifyFilterComplete();
+        
+        console.log('🎯 应用最新筛选结果:', {
+            level: latestLevel,
+            rowCount: latestRowIndices.length,
+            filterOrder: this.filterOrder
+        });
     };
 
     // ========================================
@@ -362,20 +455,144 @@
     };
 
     // ========================================
+    // 🎯 筛选历史栈操作
+    // ========================================
+    
+    /**
+     * 🔍 查找列在筛选顺序中的级别
+     * @param {number} columnIndex 列索引
+     * @returns {number} 级别索引，-1表示未找到
+     */
+    FilterManager.prototype.findColumnLevel = function(columnIndex) {
+        for (var i = 0; i < this.filterOrder.length; i++) {
+            if (this.filterOrder[i] === columnIndex) {
+                return i + 1; // +1因为Level 0是原始状态
+            }
+        }
+        return -1; // 该列未参与筛选
+    };
+    
+    /**
+     * 🎯 获取指定级别之前的行索引（用于级联筛选）
+     * @param {number} columnIndex 当前要设置筛选的列
+     * @returns {Array} 有效的行索引数组
+     */
+    FilterManager.prototype.getEffectiveRowsForColumn = function(columnIndex) {
+        // 🔧 确保筛选栈已初始化
+        if (!this.ensureFilterStackInitialized()) {
+            console.log('⚠️ 筛选栈初始化失败，回退到全量查询');
+            var allRows = [];
+            for (var i = 0; i < this.db.totalRows; i++) {
+                allRows.push(i);
+            }
+            return allRows;
+        }
+        
+        var columnLevel = this.findColumnLevel(columnIndex);
+        
+        if (columnLevel === -1) {
+            // 🆕 该列从未筛选过，使用当前最新的筛选结果
+            var latestLevel = this.filterStack.length - 1;
+            return Array.from(this.filterStack[latestLevel]);
+        } else {
+            // 🔄 该列已筛选过，回退到该列筛选前的状态
+            var beforeLevel = columnLevel - 1;
+            return Array.from(this.filterStack[beforeLevel]);
+        }
+    };
+    
+    /**
+     * 📥 添加或更新筛选级别
+     * @param {number} columnIndex 列索引
+     * @param {Object} filterCondition 筛选条件
+     * @param {Array} filteredRowIndices 筛选后的行索引
+     */
+    FilterManager.prototype.pushOrUpdateFilterLevel = function(columnIndex, filterCondition, filteredRowIndices) {
+        var columnLevel = this.findColumnLevel(columnIndex);
+        
+        if (columnLevel === -1) {
+            // 🆕 新筛选 - 压栈
+            this.filterStack.push(new Uint32Array(filteredRowIndices));
+            this.filterOrder.push(columnIndex);
+            this.filterConditions[columnIndex] = filterCondition;
+            
+            console.log('🆕 新增筛选级别:', {
+                column: columnIndex,
+                newLevel: this.filterStack.length - 1,
+                rowCount: filteredRowIndices.length,
+                stackDepth: this.filterStack.length
+            });
+        } else {
+            // 🔄 更新现有筛选 - 替换该级别及其后续级别
+            this.filterStack.length = columnLevel + 1; // 截断栈
+            this.filterOrder.length = columnLevel;
+            
+            // 重新压栈
+            this.filterStack.push(new Uint32Array(filteredRowIndices));
+            this.filterOrder.push(columnIndex);
+            this.filterConditions[columnIndex] = filterCondition;
+            
+            console.log('🔄 更新筛选级别:', {
+                column: columnIndex,
+                level: columnLevel,
+                rowCount: filteredRowIndices.length,
+                stackDepth: this.filterStack.length
+            });
+        }
+    };
+    
+    /**
+     * 🗑️ 移除指定列的筛选
+     * @param {number} columnIndex 列索引
+     */
+    FilterManager.prototype.removeFilterLevel = function(columnIndex) {
+        var columnLevel = this.findColumnLevel(columnIndex);
+        
+        if (columnLevel >= 0) {
+            // 截断到该级别之前
+            this.filterStack.length = columnLevel;
+            this.filterOrder.length = columnLevel - 1;
+            delete this.filterConditions[columnIndex];
+            
+            console.log('🗑️ 移除筛选级别:', {
+                column: columnIndex,
+                removedLevel: columnLevel,
+                newStackDepth: this.filterStack.length
+            });
+        }
+    };
+
+    // ========================================
     // 筛选数据获取
     // ========================================
     
     /**
-     * 获取列的唯一值
+     * 获取列的唯一值（用于筛选面板）
+     * 🚀 现在使用基数排序算法：O(n + k) 时间复杂度，去重+排序一次完成
+     * 🎯 支持级联筛选：基于筛选历史栈动态计算
+     * 
      * @param {number} columnIndex 列索引
-     * @returns {Array} 唯一值数组
+     * @returns {Array} 排序后的唯一值数组
      */
     FilterManager.prototype.getColumnUniqueValues = function(columnIndex) {
         if (!this.db) return [];
         
-        // 优先使用数据库的方法
-        if (this.db.getColumnUniqueValues) {
-            return this.db.getColumnUniqueValues(columnIndex);
+        // 🎯 获取该列的有效行索引（基于筛选栈）
+        var effectiveRowIndices = this.getEffectiveRowsForColumn(columnIndex);
+        
+        console.log('🎯 获取列' + columnIndex + '唯一值:', {
+            dbTotalRows: this.db.totalRows,
+            effectiveRows: effectiveRowIndices.length,
+            stackDepth: this.filterStack.length,
+            filterOrder: this.filterOrder,
+            firstFewRows: effectiveRowIndices.slice(0, 5)
+        });
+        
+        // 🚀 使用基于指定行的基数排序方法（高性能）
+        if (this.db.getColumnUniqueValuesFromRows) {
+            var result = this.db.getColumnUniqueValuesFromRows(columnIndex, effectiveRowIndices);
+            console.log('🎯 列' + columnIndex + '唯一值结果:', result.slice(0, 5));
+            return result;
         }
         
         // 回退实现
