@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列式表格编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 表格容器 -->
+    <div class="table-container" id="table-container">
+        <canvas id="tableCanvas" tabindex="0"></canvas>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div class="footer">
+        <div class="status">
+            <span id="status-text">正在加载...</span>
+        </div>
+        <div class="info">
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化</span>
+        </div>
+    </div>
+
+    <!-- 按顺序加载脚本文件 -->
+    <script>
+        console.log('开始加载脚本...');
+        
+        // 脚本加载顺序很重要
+        var scripts = [
+            'src/utils/helpers.js',
+            'src/core/eventManager.js', 
+            'src/core/config.js',
+            'src/storage/SimpleColumnarDB.js',
+            'src/widgets/NumberPad.js',
+            'src/widgets/Calendar.js', 
+            'src/widgets/StringSelector.js',
+            'src/widgets/TableWidget.js',
+            'src/modules/renderer.js',
+            'src/modules/database.js',
+            'src/modules/SimpleTableCore.js'
+        ];
+        
+        var loadedScripts = 0;
+        var statusText = document.getElementById('status-text');
+        
+        function updateStatus(message, type) {
+            console.log('Status:', message);
+            if (statusText) {
+                statusText.textContent = message;
+                statusText.style.color = type === 'error' ? '#e74c3c' : 
+                                       type === 'success' ? '#27ae60' : 'white';
+            }
+        }
+        
+        function loadScript(src) {
+            return new Promise(function(resolve, reject) {
+                var script = document.createElement('script');
+                script.src = src;
+                script.onload = function() {
+                    console.log('✓ 已加载:', src);
+                    resolve();
+                };
+                script.onerror = function() {
+                    console.error('✗ 加载失败:', src);
+                    reject(new Error('Failed to load ' + src));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        function loadAllScripts() {
+            updateStatus('正在加载脚本 0/' + scripts.length + '...');
+            
+            var loadPromise = scripts.reduce(function(promise, script, index) {
+                return promise.then(function() {
+                    return loadScript(script);
+                }).then(function() {
+                    loadedScripts++;
+                    updateStatus('正在加载脚本 ' + loadedScripts + '/' + scripts.length + '...');
+                });
+            }, Promise.resolve());
+            
+            return loadPromise;
+        }
+        
+        function checkModules() {
+            var requiredModules = [
+                'Helpers', 'EventManager', 'globalEventManager', 'EVENTS', 'Config',
+                'SimpleColumnarDB', 'NumberPadWidget', 'CalendarWidget', 
+                'StringSelectorWidget', 'TableWidget', 'TableRenderer', 
+                'DatabaseManager', 'SimpleTableCore'
+            ];
+            
+            var missing = [];
+            requiredModules.forEach(function(moduleName) {
+                if (typeof window[moduleName] === 'undefined') {
+                    missing.push(moduleName);
+                }
+            });
+            
+            if (missing.length > 0) {
+                throw new Error('缺少模块: ' + missing.join(', '));
+            }
+            
+            console.log('✓ 所有模块加载成功');
+            return true;
+        }
+        
+        function initializeCanvas() {
+            var canvas = document.getElementById('tableCanvas');
+            var container = document.getElementById('table-container');
+            
+            if (!canvas || !container) {
+                throw new Error('找不到Canvas或容器元素');
+            }
+            
+            var rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            
+            return canvas;
+        }
+        
+        function startApp() {
+            try {
+                updateStatus('正在检查模块...');
+                checkModules();
+                
+                updateStatus('正在初始化Canvas...');
+                var canvas = initializeCanvas();
+                
+                updateStatus('正在创建配置...');
+                var config = new window.Config();
+                
+                updateStatus('正在创建表格核心...');
+                var tableCore = new window.SimpleTableCore(canvas, config);
+                window.app = { tableCore: tableCore };
+                
+                updateStatus('正在初始化应用...');
+                return tableCore.initialize()
+                    .then(function() {
+                        updateStatus('应用初始化成功', 'success');
+                        
+                        // 添加示例数据
+                        setTimeout(function() {
+                            addSampleData(tableCore);
+                        }, 500);
+                        
+                        setupGlobalInput(tableCore);
+                        enableAutoSave(tableCore);
+                        setupWindowResize(tableCore);
+                        
+                        updateStatus('应用就绪，双击单元格开始编辑', 'success');
+                        showStats(tableCore);
+                    });
+            } catch (error) {
+                console.error('应用启动失败:', error);
+                updateStatus('启动失败: ' + error.message, 'error');
+                throw error;
+            }
+        }
+        
+        function addSampleData(tableCore) {
+            if (tableCore.db.currentRows > 0) {
+                return; // 已有数据，不添加示例数据
+            }
+            
+            try {
+                tableCore.db.clear();
+                
+                var sampleData = [
+                    ['张三', '28', '北京', '工程师', '15000', '123.45', '2024-01-15', '北京'],
+                    ['李四', '32', '上海', '设计师', '12000', '999.99', '2024-02-20', '杭州'],
+                    ['王五', '25', '广州', '产品经理', '18000', '678.90', '2024-03-10', '深圳'],
+                    ['赵六', '29', '深圳', '前端开发', '16000', '456.78', '2024-04-15', '广州'],
+                    ['孙七', '35', '杭州', '后端开发', '20000', '1234.56', '2024-05-22', '杭州'],
+                    ['周八', '27', '南京', '运维工程师', '14000', '789.01', '2024-06-08', '南京'],
+                    ['吴九', '31', '成都', '数据分析师', '17000', '567.89', '2024-07-12', '成都'],
+                    ['郑十', '26', '武汉', 'UI设计师', '13000', '345.67', '2024-08-18', '武汉'],
+                    ['冯十一', '33', '西安', '项目经理', '22000', '2345.67', '2024-09-25', '西安'],
+                    ['陈十二', '24', '重庆', '测试工程师', '11000', '234.56', '2024-10-30', '重庆'],
+                    ['褚十三', '30', '天津', '架构师', '28000', '3456.78', '2024-11-05', '天津'],
+                    ['卫十四', '28', '青岛', '算法工程师', '25000', '2567.89', '2024-12-12', '青岛'],
+                    ['蒋十五', '32', '大连', '技术总监', '35000', '4567.89', '2025-01-08', '大连'],
+                    ['沈十六', '26', '厦门', '移动开发', '19000', '1345.67', '2025-02-14', '厦门'],
+                    ['韩十七', '29', '合肥', '全栈开发', '21000', '1789.01', '2025-03-20', '合肥'],
+                    ['杨十八', '34', '长沙', '安全工程师', '23000', '1987.65', '2025-04-25', '长沙'],
+                    ['朱十九', '27', '郑州', '运营专员', '12000', '456.78', '2025-05-30', '郑州'],
+                    ['秦二十', '31', '石家庄', '人事经理', '18000', '987.65', '2025-06-15', '石家庄'],
+                    ['尤二一', '25', '太原', '市场专员', '10000', '234.56', '2025-07-20', '太原'],
+                    ['许二二', '36', '福州', '财务经理', '26000', '3210.98', '2025-08-28', '福州']
+                ];
+                
+                for (var row = 0; row < sampleData.length; row++) {
+                    for (var col = 0; col < sampleData[row].length; col++) {
+                        tableCore.setCellValue(row, col, sampleData[row][col]);
+                    }
+                }
+                
+                tableCore.db.currentRows = sampleData.length;
+                tableCore.db.visibleRows = sampleData.length;
+                tableCore.state.isDirty = true;
+                tableCore.render();
+                showStats(tableCore);
+                
+                updateStatus('已加载' + sampleData.length + '行示例数据', 'success');
+                console.log('✓ 示例数据加载完成');
+                
+            } catch (error) {
+                console.error('加载示例数据失败:', error);
+                updateStatus('加载示例数据失败: ' + error.message, 'error');
+            }
+        }
+        
+        function setupGlobalInput(tableCore) {
+            try {
+                var existingInput = document.getElementById('edit-global-input');
+                if (existingInput) {
+                    existingInput.parentNode.removeChild(existingInput);
+                }
+                
+                var globalInput = document.createElement('input');
+                globalInput.type = 'text';
+                globalInput.id = 'edit-global-input';
+                globalInput.value = tableCore.getCellValue(0, 0) || '';
+                globalInput.className = 'global-edit-input';
+                
+                var canvas = document.getElementById('tableCanvas');
+                var canvasRect = canvas.getBoundingClientRect();
+                var x = canvasRect.left + 50;
+                var y = canvasRect.top + 35 - 1;
+                
+                globalInput.style.left = x + 'px';
+                globalInput.style.top = y + 'px';
+                
+                document.body.appendChild(globalInput);
+                
+                setTimeout(function() {
+                    globalInput.focus();
+                    var textLength = globalInput.value.length;
+                    globalInput.setSelectionRange(textLength, textLength);
+                    globalInput.style.caretColor = 'transparent';
+                    globalInput.dataset.isFirstClick = 'true';
+                }, 100);
+                
+                setupInputEvents(globalInput, tableCore);
+                console.log('✓ 全局输入框设置完成');
+                
+            } catch (error) {
+                console.error('设置全局输入框失败:', error);
+            }
+        }
+        
+        function setupInputEvents(globalInput, tableCore) {
+            var canvas = document.getElementById('tableCanvas');
+            
+            // Canvas点击事件 - 移动输入框
+            canvas.addEventListener('click', function(e) {
+                try {
+                    var canvasRect = canvas.getBoundingClientRect();
+                    var clickX = e.clientX - canvasRect.left;
+                    var clickY = e.clientY - canvasRect.top;
+                    
+                    var rowHeaderWidth = 50;
+                    var headerHeight = 35;
+                    var cellWidth = 120;
+                    var cellHeight = 30;
+                    
+                    if (clickX < rowHeaderWidth || clickY < headerHeight) {
+                        return;
+                    }
+                    
+                    var col = Math.floor((clickX - rowHeaderWidth) / cellWidth);
+                    var row = Math.floor((clickY - headerHeight) / cellHeight);
+                    
+                    var newX = canvasRect.left + rowHeaderWidth + col * cellWidth;
+                    var newY = canvasRect.top + headerHeight + row * cellHeight - 1;
+                    
+                    globalInput.style.left = newX + 'px';
+                    globalInput.style.top = newY + 'px';
+                    
+                    var cellValue = tableCore.getCellValue(row, col) || '';
+                    globalInput.value = cellValue;
+                    
+                    globalInput.focus();
+                    var textLength = globalInput.value.length;
+                    globalInput.setSelectionRange(textLength, textLength);
+                    globalInput.style.caretColor = 'transparent';
+                    globalInput.dataset.isFirstClick = 'true';
+                    
+                    // 选择单元格
+                    tableCore.selectCell(row, col);
+                    
+                } catch (error) {
+                    console.error('处理Canvas点击失败:', error);
+                }
+            });
+            
+            // 输入框事件
+            function showCursor() {
+                if (globalInput.dataset.isFirstClick === 'true') {
+                    globalInput.style.caretColor = '#2c3e50';
+                    globalInput.dataset.isFirstClick = 'false';
+                }
+            }
+            
+            globalInput.addEventListener('keydown', showCursor);
+            globalInput.addEventListener('input', showCursor);
+            globalInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    // 保存当前值
+                    var selectedCell = tableCore.state.selectedCell;
+                    if (selectedCell.row >= 0 && selectedCell.col >= 0) {
+                        tableCore.setCellValue(selectedCell.row, selectedCell.col, globalInput.value);
+                    }
+                    e.preventDefault();
+                }
+            });
+        }
+        
+        function enableAutoSave(tableCore) {
+            if (tableCore.eventManager && window.EVENTS) {
+                tableCore.eventManager.on(window.EVENTS.TABLE_DATA_CHANGED, function() {
+                    setTimeout(function() { showStats(tableCore); }, 100);
+                });
+            }
+        }
+        
+        function setupWindowResize(tableCore) {
+            window.addEventListener('resize', function() {
+                setTimeout(function() {
+                    try {
+                        initializeCanvas();
+                        tableCore.render();
+                    } catch (error) {
+                        console.error('重新渲染失败:', error);
+                    }
+                }, 100);
+            });
+        }
+        
+        function showStats(tableCore) {
+            var infoText = document.getElementById('info-text');
+            if (infoText && tableCore && tableCore.db) {
+                try {
+                    var currentRows = tableCore.db.currentRows || 0;
+                    var maxRows = tableCore.db.maxRows || 100;
+                    var maxCols = tableCore.db.maxCols || 26;
+                    infoText.textContent = '列式存储: ' + currentRows + '/' + maxRows + '行 ' + maxCols + '列';
+                } catch (error) {
+                    infoText.textContent = '列式内存数据库 + Canvas渲染';
+                }
+            }
+        }
+        
+        // 主启动流程
+        function main() {
+            console.log('开始主启动流程...');
+            
+            loadAllScripts()
+                .then(function() {
+                    console.log('✓ 所有脚本加载完成');
+                    updateStatus('所有脚本加载完成，正在启动应用...');
+                    return startApp();
+                })
+                .then(function() {
+                    console.log('✓ 应用启动完成');
+                })
+                .catch(function(error) {
+                    console.error('✗ 应用启动失败:', error);
+                    updateStatus('应用启动失败: ' + error.message, 'error');
+                });
+        }
+        
+        // 等待DOM加载完成后启动
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', main);
+        } else {
+            setTimeout(main, 100);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列式表格编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- 基础依赖 -->
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/core/eventManager.js"></script>
+    <script src="src/core/config.js"></script>
+    
+    <!-- 列式数据库 -->
+    <script src="src/storage/SimpleColumnarDB.js"></script>
+    
+    <!-- UI控件 -->
+    <script src="src/widgets/NumberPad.js"></script>
+    <script src="src/widgets/Calendar.js"></script>
+    <script src="src/widgets/StringSelector.js"></script>
+    <script src="src/widgets/ScrollbarWidget.js"></script>
+    <script src="src/widgets/EditWidget.js"></script>
+    <script src="src/widgets/TableWidget.js"></script>
+    
+    <!-- 筛选模块 -->
+    <script src="src/modules/FilterManager.js"></script>
+    <script src="src/modules/TableFilter.js"></script>
+    <script src="src/widgets/FilterPanel.js"></script>
+    
+    <!-- 核心模块 -->
+    <script src="src/modules/database.js"></script>
+    <script src="src/modules/renderer.js"></script>
+    <script src="src/modules/SimpleTableCore.js"></script>
+    
+</head>
+<body>
+    <!-- 表格容器 -->
+    <div class="table-container" id="table-container">
+        <canvas id="tableCanvas" tabindex="0"></canvas>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div class="footer">
+        <div class="status">
+            <span id="status-text">正在加载...</span>
+        </div>
+        <div class="info">
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化 - 💡操作提示: 列头左侧1/4排序，右侧1/4筛选</span>
+        </div>
+    </div>
+
+    <!-- 应用启动脚本 -->
+    <script>
+        (function() {
+            'use strict';
+            
+            var app = { tableCore: null };
+            window.app = app;
+            
+            var statusText = document.getElementById('status-text');
+            var infoText = document.getElementById('info-text');
+            
+            // 更新状态信息
+            function updateStatus(message, type) {
+                if (statusText) {
+                    statusText.textContent = message;
+                    statusText.style.color = type === 'error' ? '#e74c3c' : 
+                                           type === 'success' ? '#27ae60' : 'white';
+                }
+            }
+            
+            function updateInfo(message) {
+                if (infoText) {
+                    infoText.textContent = message;
+                }
+            }
+            
+            // 初始化Canvas
+            function initializeCanvas() {
+                var canvas = document.getElementById('tableCanvas');
+                var container = document.getElementById('table-container');
+                
+                if (!canvas || !container) {
+                    throw new Error('找不到Canvas或容器元素');
+                }
+                
+                var rect = container.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                
+                return canvas;
+            }
+            
+            // 启动应用
+            function startApp() {
+                try {
+                    updateStatus('正在检查模块...');
+                    
+                    // 检查必需模块
+                    if (!window.Config) throw new Error('Config模块未加载');
+                    if (!window.SimpleTableCore) throw new Error('SimpleTableCore模块未加载');
+                    if (!window.SimpleColumnarDB) throw new Error('SimpleColumnarDB模块未加载');
+                    
+                    updateStatus('正在初始化Canvas...');
+                    var canvas = initializeCanvas();
+                    
+                    updateStatus('正在创建配置...');
+                    var config = new window.Config();
+                    
+                    updateStatus('正在创建表格核心...');
+                    app.tableCore = new window.SimpleTableCore(canvas, config);
+                    
+                    updateStatus('正在初始化应用...');
+                    
+                    app.tableCore.initialize()
+                        .then(function() {
+                            updateStatus('应用初始化成功', 'success');
+                            
+                            // 延迟添加示例数据（如果IndexedDB为空）
+                            setTimeout(function() {
+                                addSampleDataIfNeeded();
+                                reEncodeAllDates();
+                            }, 500);
+                            
+                            updateStatus('应用就绪，双击单元格开始编辑', 'success');
+                            showStats();
+                            enableAutoSave();
+                        })
+                        .catch(function(error) {
+                            console.error('初始化失败:', error);
+                            updateStatus('初始化失败: ' + error.message, 'error');
+                        });
+                        
+                } catch (error) {
+                    console.error('启动失败:', error);
+                    updateStatus('启动失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 添加示例数据（仅当数据库为空时）
+            function addSampleDataIfNeeded() {
+                if (!app.tableCore || app.tableCore.db.totalRows > 0) {
+                    console.log('已有数据，跳过示例数据加载，当前行数:', app.tableCore.db.totalRows);
+                    return;
+                }
+                
+                console.log('数据库为空，添加示例数据...');
+                
+                try {
+                    // 清空并添加20行示例数据
+                    app.tableCore.db.clear();
+                    
+                    var sampleData = [
+                        ['张三', '28', '北京', '工程师', '15000', '123.45', '2024-01-15', '北京'],
+                        ['李四', '32', '上海', '设计师', '12000', '999.99', '2024-02-20', '杭州'],
+                        ['王五', '25', '广州', '产品经理', '18000', '678.90', '2024-03-10', '深圳'],
+                        ['赵六', '29', '深圳', '前端开发', '16000', '456.78', '2024-04-15', '广州'],
+                        ['孙七', '35', '杭州', '后端开发', '20000', '1234.56', '2024-05-22', '杭州'],
+                        ['周八', '27', '南京', '运维工程师', '14000', '789.01', '2024-06-08', '南京'],
+                        ['吴九', '31', '成都', '数据分析师', '17000', '567.89', '2024-07-12', '成都'],
+                        ['郑十', '26', '武汉', 'UI设计师', '13000', '345.67', '2024-08-18', '武汉'],
+                        ['冯十一', '33', '西安', '项目经理', '22000', '2345.67', '2024-09-25', '西安'],
+                        ['陈十二', '24', '重庆', '测试工程师', '11000', '234.56', '2024-10-30', '重庆'],
+                        ['褚十三', '30', '天津', '架构师', '28000', '3456.78', '2024-11-05', '天津'],
+                        ['卫十四', '28', '青岛', '算法工程师', '25000', '2567.89', '2024-12-12', '青岛'],
+                        ['蒋十五', '32', '大连', '技术总监', '35000', '4567.89', '2025-01-08', '大连'],
+                        ['沈十六', '26', '厦门', '移动开发', '19000', '1345.67', '2025-02-14', '厦门'],
+                        ['韩十七', '29', '合肥', '全栈开发', '21000', '1789.01', '2025-03-20', '合肥'],
+                        ['杨十八', '34', '长沙', '安全工程师', '23000', '1987.65', '2025-04-25', '长沙'],
+                        ['朱十九', '27', '郑州', '运营专员', '12000', '456.78', '2025-05-30', '郑州'],
+                        ['秦二十', '31', '石家庄', '人事经理', '18000', '987.65', '2025-06-15', '石家庄'],
+                        ['尤二一', '25', '太原', '市场专员', '10000', '234.56', '2025-07-20', '太原'],
+                        ['许二二', '36', '福州', '财务经理', '26000', '3210.98', '2025-08-28', '福州'],
+                        ['吴二三', '29', '兰州', '系统架构师', '30000', '2345.67', '2025-09-15', '兰州'],
+                        ['郑二四', '33', '乌鲁木齐', '数据库管理员', '22000', '1567.89', '2025-10-20', '乌鲁木齐'],
+                        ['王二五', '28', '呼和浩特', '网络工程师', '19000', '1234.56', '2025-11-25', '呼和浩特'],
+                        ['李二六', '31', '银川', '前端架构师', '27000', '2789.01', '2025-12-30', '银川'],
+                        ['张二七', '26', '海口', '移动开发专家', '24000', '2123.45', '2026-01-15', '海口'],
+                        ['陈二八', '34', '拉萨', '云计算工程师', '32000', '3456.78', '2026-02-20', '拉萨'],
+                        ['刘二九', '30', '南宁', '人工智能工程师', '35000', '4567.89', '2026-03-25', '南宁'],
+                        ['黄三十', '27', '贵阳', 'DevOps工程师', '26000', '2345.67', '2026-04-30', '贵阳'],
+                        ['赵三一', '32', '昆明', '区块链开发', '29000', '3123.45', '2026-05-15', '昆明'],
+                        ['孙三二', '25', '哈尔滨', '游戏开发', '21000', '1789.01', '2026-06-20', '哈尔滨'],
+                        ['周三三', '35', '长春', '嵌入式开发', '23000', '1987.65', '2026-07-25', '长春'],
+                        ['吴三四', '29', '沈阳', '量化分析师', '31000', '3456.78', '2026-08-30', '沈阳'],
+                        ['郑三五', '28', '济南', '图像处理工程师', '24000', '2123.45', '2026-09-15', '济南'],
+                        ['王三六', '33', '南昌', '机器学习工程师', '33000', '3789.01', '2026-10-20', '南昌'],
+                        ['李三七', '26', '呼伦贝尔', '自然语言处理', '28000', '2567.89', '2026-11-25', '呼伦贝尔'],
+                        ['张三八', '31', '克拉玛依', '计算机视觉', '30000', '3234.56', '2026-12-30', '克拉玛依'],
+                        ['陈三九', '27', '三亚', '语音识别专家', '26000', '2456.78', '2027-01-15', '三亚'],
+                        ['刘四十', '34', '桂林', '推荐系统工程师', '29000', '3123.45', '2027-02-20', '桂林'],
+                        ['黄四一', '30', '丽江', '搜索算法工程师', '27000', '2789.01', '2027-03-25', '丽江'],
+                        ['赵四二', '25', '九寨沟', '分布式系统专家', '32000', '3567.89', '2027-04-30', '九寨沟']
+                    ];
+                    
+                    // 批量添加数据
+                    for (var row = 0; row < sampleData.length; row++) {
+                        for (var col = 0; col < sampleData[row].length; col++) {
+                            try {
+                                app.tableCore.setCellValue(row, col, sampleData[row][col]);
+                            } catch (error) {
+                                console.error('设置单元格[' + row + ',' + col + ']失败:', error);
+                                throw error;
+                            }
+                        }
+                    }
+                    
+                    // 🔧 强制更新数据库状态（新架构适配）
+                    if (app.tableCore && app.tableCore.db) {
+                        var totalRows = sampleData.length;
+                        app.tableCore.db.totalRows = totalRows;     // 存储层总行数
+                        app.tableCore.db.currentRows = totalRows;   // 向后兼容
+                        app.tableCore.db.visibleRows = totalRows;   // 视图层可见行数
+                        app.tableCore.state.isDirty = true;
+                        
+                        // 安全检查：确保displayIndices存在并正确初始化
+                        if (app.tableCore.db.displayIndices) {
+                            for (var i = 0; i < totalRows; i++) {
+                                app.tableCore.db.displayIndices[i] = i;
+                            }
+                        }
+                    }
+                    
+                    app.tableCore.render();
+                    showStats();
+                    
+                    updateStatus('已加载' + totalRows + '行示例数据', 'success');
+                    
+                } catch (error) {
+                    console.error('加载示例数据失败:', error);
+                    updateStatus('加载示例数据失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 显示统计信息
+            function showStats() {
+                if (app.tableCore && app.tableCore.db) {
+                    try {
+                        var currentRows = app.tableCore.db.currentRows || 0;
+                        var maxRows = app.tableCore.db.maxRows || 100;
+                        var maxCols = app.tableCore.db.maxCols || 26;
+                        updateInfo('列式存储: ' + currentRows + '/' + maxRows + '行 ' + maxCols + '列');
+                    } catch (error) {
+                        updateInfo('列式内存数据库 + Canvas渲染');
+                    }
+                }
+            }
+            
+            // 重新编码所有日期数据
+            function reEncodeAllDates() {
+                if (!app.tableCore) return;
+                
+                try {
+                    var dateData = [
+                        '2024-01-15', '2024-02-20', '2024-03-10', '2024-04-15', '2024-05-22',
+                        '2024-06-08', '2024-07-12', '2024-08-18', '2024-09-25', '2024-10-30',
+                        '2024-11-05', '2024-12-12', '2025-01-08', '2025-02-14', '2025-03-20',
+                        '2025-04-25', '2025-05-30', '2025-06-15', '2025-07-20', '2025-08-28'
+                    ];
+                    
+                    // 重新设置G列（第6列）的所有日期
+                    for (var row = 0; row < dateData.length && row < 20; row++) {
+                        app.tableCore.setCellValue(row, 6, dateData[row]);
+                    }
+                    
+                    app.tableCore.render();
+                } catch (error) {
+                    console.error('重新编码日期失败:', error);
+                }
+            }
+            
+            
+            // 启用自动保存
+            function enableAutoSave() {
+                if (!app.tableCore) return;
+                
+                try {
+                    if (app.tableCore.eventManager && window.EVENTS) {
+                        app.tableCore.eventManager.on(window.EVENTS.TABLE_DATA_CHANGED, function() {
+                            setTimeout(showStats, 100);
+                        });
+                    }
+                } catch (error) {
+                    console.error('启用自动保存失败:', error);
+                }
+            }
+            
+            // 窗口大小变化时重新初始化Canvas
+            window.addEventListener('resize', function() {
+                if (app.tableCore) {
+                    setTimeout(function() {
+                        try {
+                            initializeCanvas();
+                            app.tableCore.render();
+                        } catch (error) {
+                            console.error('重新渲染失败:', error);
+                        }
+                    }, 100);
+                }
+            });
+            
+            // 启动应用
+            function init() {
+                setTimeout(startApp, 100);
+            }
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+            
+            
+        })();
+    </script>
+</body>
+</html>

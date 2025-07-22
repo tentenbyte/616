@@ -1,0 +1,313 @@
+/**
+ * 列式表格编辑器 - 样式文件
+ * Firefox 52兼容版本
+ */
+
+/* 重置样式 */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Cascadia Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background: #f5f6fa;
+    overflow: hidden;
+}
+
+/* 主容器 */
+.table-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 60px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    border: 1px solid #e1e5e9;
+}
+
+/* Canvas画布 */
+#tableCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: default;
+    outline: none;
+}
+
+#tableCanvas:focus {
+    outline: none;
+}
+
+/* 底部状态栏 */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: #2c3e50;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 1000;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status {
+    margin-right: auto;
+    color: #ecf0f1;
+}
+
+.info {
+    margin-left: auto;
+    color: #bdc3c7;
+}
+
+/* 状态颜色 */
+.status.success { color: #2ecc71; }
+.status.error { color: #e74c3c; }
+.status.warning { color: #f39c12; }
+
+/* 全局编辑输入框 */
+input#edit-global-input,
+.global-edit-input {
+    position: absolute;
+    border: 2px solid #3498db;
+    outline: none;
+    padding: 0 3px;
+    text-indent: 0;
+    vertical-align: top;
+    margin: 0;
+    z-index: 1000;
+    font-size: 13px;
+    font-family: 'Cascadia Code', monospace;
+    font-weight: normal;
+    line-height: 30px;
+    width: 120px;
+    height: 30px;
+    background: #ffffff;
+    color: #2c3e50;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px rgba(52, 152, 219, 0.25);
+    caret-color: transparent;
+    transition: border-color 0.2s ease;
+}
+
+input#edit-global-input:focus {
+    border-color: #2980b9;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+/* 光标动画 */
+@keyframes cursor-blink {
+    0%, 50% { 
+        border-left: 2px solid #3498db; 
+    }
+    51%, 100% { 
+        border-left: 2px solid transparent; 
+    }
+}
+
+.cursor-blink {
+    animation: cursor-blink 1s infinite;
+}
+
+/* 控件容器 */
+.widget-container {
+    position: absolute;
+    background: #ffffff;
+    border: 1px solid #bdc3c7;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 12px;
+}
+
+/* 数字键盘样式 */
+.number-pad {
+    padding: 8px;
+    width: 160px;
+}
+
+.number-pad .row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.number-pad .btn {
+    flex: 1;
+    height: 32px;
+    border: 1px solid #bdc3c7;
+    background: #ecf0f1;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.number-pad .btn:hover {
+    background: #d5dbdb;
+    border-color: #95a5a6;
+}
+
+.number-pad .btn:active {
+    background: #bdc3c7;
+}
+
+/* 日历样式 */
+.calendar {
+    padding: 8px;
+    width: 200px;
+}
+
+.calendar .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+.calendar .nav-btn {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #bdc3c7;
+    background: #ecf0f1;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.calendar .nav-btn:hover {
+    background: #d5dbdb;
+}
+
+.calendar .days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.calendar .day {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.calendar .day:hover {
+    background: #e8f4f8;
+}
+
+.calendar .day.selected {
+    background: #3498db;
+    color: #ffffff;
+}
+
+/* 字符串选择器样式 */
+.string-selector {
+    padding: 4px;
+    max-width: 180px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.string-selector .option {
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+}
+
+.string-selector .option:hover {
+    background: #e8f4f8;
+}
+
+.string-selector .option:active {
+    background: #d6eaf8;
+}
+
+/* 滚动条样式 */
+.string-selector::-webkit-scrollbar {
+    width: 6px;
+}
+
+.string-selector::-webkit-scrollbar-track {
+    background: #f1f2f6;
+    border-radius: 3px;
+}
+
+.string-selector::-webkit-scrollbar-thumb {
+    background: #bdc3c7;
+    border-radius: 3px;
+}
+
+.string-selector::-webkit-scrollbar-thumb:hover {
+    background: #95a5a6;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .table-container {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        bottom: 50px;
+        border-radius: 4px;
+    }
+    
+    .footer {
+        padding: 0 10px;
+        font-size: 11px;
+    }
+    
+    input#edit-global-input {
+        font-size: 12px;
+    }
+}
+
+/* 打印样式 */
+@media print {
+    .footer {
+        display: none;
+    }
+    
+    .table-container {
+        position: static;
+        width: 100%;
+        height: auto;
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+}
+
+/* 高对比度支持 */
+@media (prefers-contrast: high) {
+    .table-container {
+        border: 2px solid #000;
+    }
+    
+    input#edit-global-input {
+        border: 2px solid #000;
+    }
+    
+    .widget-container {
+        border: 2px solid #000;
+    }
+}
