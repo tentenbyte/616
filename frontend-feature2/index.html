@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列式表格编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- 基础依赖 -->
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/core/eventManager.js"></script>
+    <script src="src/core/config.js"></script>
+    
+    <!-- 列式数据库 -->
+    <script src="src/storage/IndexedDBManager.js"></script>
+    <script src="src/storage/SimpleColumnarDB.js"></script>
+    
+    <!-- UI控件 -->
+    <script src="src/widgets/NumberPad.js"></script>
+    <script src="src/widgets/Calendar.js"></script>
+    <script src="src/widgets/StringSelector.js"></script>
+    <script src="src/widgets/EditWidget.js"></script>
+    <script src="src/widgets/TableWidget.js"></script>
+    
+    <!-- 筛选模块 -->
+    <script src="src/modules/FilterManager.js"></script>
+    <script src="src/modules/TableFilter.js"></script>
+    <script src="src/widgets/FilterPanel.js"></script>
+    
+    <!-- 核心模块 -->
+    <script src="src/modules/renderer.js"></script>
+    <script src="src/modules/SimpleTableCore.js"></script>
+    
+</head>
+<body>
+    <!-- 表格容器 -->
+    <div class="table-container" id="table-container">
+        <canvas id="tableCanvas" tabindex="0"></canvas>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div class="footer">
+        <div class="status">
+            <span id="status-text">正在加载...</span>
+        </div>
+        <div class="info">
+            <span id="info-text">列式内存数据库 + Canvas渲染 + IndexedDB持久化 - 💡操作提示: 列头左侧1/4排序，右侧1/4筛选</span>
+        </div>
+    </div>
+
+    <!-- 应用启动脚本 -->
+    <script>
+        (function() {
+            'use strict';
+            
+            var app = { tableCore: null };
+            window.app = app;
+            
+            var statusText = document.getElementById('status-text');
+            var infoText = document.getElementById('info-text');
+            
+            // 更新状态信息
+            function updateStatus(message, type) {
+                if (statusText) {
+                    statusText.textContent = message;
+                    statusText.style.color = type === 'error' ? '#e74c3c' : 
+                                           type === 'success' ? '#27ae60' : 'white';
+                }
+            }
+            
+            function updateInfo(message) {
+                if (infoText) {
+                    infoText.textContent = message;
+                }
+            }
+            
+            // 初始化Canvas
+            function initializeCanvas() {
+                var canvas = document.getElementById('tableCanvas');
+                var container = document.getElementById('table-container');
+                
+                if (!canvas || !container) {
+                    throw new Error('找不到Canvas或容器元素');
+                }
+                
+                var rect = container.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                
+                return canvas;
+            }
+            
+            // 启动应用
+            function startApp() {
+                try {
+                    updateStatus('正在检查模块...');
+                    
+                    // 检查必需模块
+                    if (!window.Config) throw new Error('Config模块未加载');
+                    if (!window.SimpleTableCore) throw new Error('SimpleTableCore模块未加载');
+                    if (!window.SimpleColumnarDB) throw new Error('SimpleColumnarDB模块未加载');
+                    
+                    updateStatus('正在初始化Canvas...');
+                    var canvas = initializeCanvas();
+                    
+                    updateStatus('正在创建配置...');
+                    var config = new window.Config();
+                    
+                    updateStatus('正在创建表格核心...');
+                    app.tableCore = new window.SimpleTableCore(canvas, config);
+                    
+                    updateStatus('正在初始化持久化系统...');
+                    
+                    // 首先初始化持久化系统
+                    app.tableCore.db.initializePersistence()
+                        .then(function(loadResult) {
+                            updateStatus('正在初始化应用...');
+                            
+                            return app.tableCore.initialize().then(function() {
+                                updateStatus('应用初始化成功', 'success');
+                                
+                                // 如果没有加载到数据，添加示例数据
+                                if (!loadResult.loaded) {
+                                    console.log('📝 未找到持久化数据，加载示例数据...');
+                                    setTimeout(function() {
+                                        addSampleDataIfNeeded();
+                                        
+                                        // 标记元数据为脏数据并保存
+                                        app.tableCore.db.markMetadataDirty();
+                                        app.tableCore.db.saveIncrementally().then(function() {
+                                            console.log('✅ 示例数据已保存到IndexedDB');
+                                        });
+                                    }, 500);
+                                } else {
+                                    console.log('✅ 成功从IndexedDB恢复数据:', loadResult);
+                                    // 确保UI状态同步
+                                    app.tableCore.db.currentRows = loadResult.totalRows;
+                                    
+                                    // 🔍 调试：验证数据是否真正加载
+                                    console.log('🔍 验证加载的数据:');
+                                    for (var checkRow = 0; checkRow < Math.min(3, loadResult.totalRows); checkRow++) {
+                                        for (var checkCol = 0; checkCol < Math.min(3, 8); checkCol++) {
+                                            var value = app.tableCore.getCellValue(checkRow, checkCol);
+                                            console.log('  [' + checkRow + ',' + checkCol + '] = "' + value + '"');
+                                        }
+                                    }
+                                }
+                                
+                                updateStatus('应用就绪，双击单元格开始编辑 - 数据已持久化', 'success');
+                                showStats();
+                                enableAutoSave();
+                            });
+                        })
+                        .catch(function(error) {
+                            console.error('持久化系统初始化失败:', error);
+                            updateStatus('初始化失败: ' + error.message, 'error');
+                            
+                            // 尝试无持久化模式启动
+                            updateStatus('尝试无持久化模式启动...', 'error');
+                            app.tableCore.initialize()
+                                .then(function() {
+                                    updateStatus('应用以无持久化模式启动', 'error');
+                                    setTimeout(addSampleDataIfNeeded, 500);
+                                })
+                                .catch(function(fallbackError) {
+                                    updateStatus('应用启动完全失败: ' + fallbackError.message, 'error');
+                                });
+                        });
+                        
+                } catch (error) {
+                    console.error('启动失败:', error);
+                    updateStatus('启动失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 添加示例数据（仅当数据库为空时）
+            function addSampleDataIfNeeded() {
+                if (!app.tableCore) {
+                    return;
+                }
+                
+                // 检查是否已有数据（包括从IndexedDB加载的）
+                if (app.tableCore.db.totalRows > 0 || app.tableCore.db.currentRows > 0) {
+                    console.log('ℹ️ 已有数据，跳过示例数据加载');
+                    return;
+                }
+                
+                try {
+                    console.log('📝 数据库为空，开始添加示例数据...');
+                    
+                    var sampleData = [
+                        ['张三', '28', '北京', '工程师', '15000', '123.45', '2024-01-15', '北京'],
+                        ['李四', '32', '上海', '设计师', '12000', '999.99', '2024-02-20', '杭州'],
+                        ['王五', '25', '广州', '产品经理', '18000', '678.90', '2024-03-10', '深圳'],
+                        ['赵六', '29', '深圳', '前端开发', '16000', '456.78', '2024-04-15', '广州'],
+                        ['孙七', '35', '杭州', '后端开发', '20000', '1234.56', '2024-05-22', '杭州'],
+                        ['周八', '27', '南京', '运维工程师', '14000', '789.01', '2024-06-08', '南京'],
+                        ['吴九', '31', '成都', '数据分析师', '17000', '567.89', '2024-07-12', '成都'],
+                        ['郑十', '26', '武汉', 'UI设计师', '13000', '345.67', '2024-08-18', '武汉'],
+                        ['冯十一', '33', '西安', '项目经理', '22000', '2345.67', '2024-09-25', '西安'],
+                        ['陈十二', '24', '重庆', '测试工程师', '11000', '234.56', '2024-10-30', '重庆'],
+                        ['褚十三', '30', '天津', '架构师', '28000', '3456.78', '2024-11-05', '天津'],
+                        ['卫十四', '28', '青岛', '算法工程师', '25000', '2567.89', '2024-12-12', '青岛'],
+                        ['蒋十五', '32', '大连', '技术总监', '35000', '4567.89', '2025-01-08', '大连'],
+                        ['沈十六', '26', '厦门', '移动开发', '19000', '1345.67', '2025-02-14', '厦门'],
+                        ['韩十七', '29', '合肥', '全栈开发', '21000', '1789.01', '2025-03-20', '合肥'],
+                        ['杨十八', '34', '长沙', '安全工程师', '23000', '1987.65', '2025-04-25', '长沙'],
+                        ['朱十九', '27', '郑州', '运营专员', '12000', '456.78', '2025-05-30', '郑州'],
+                        ['秦二十', '31', '石家庄', '人事经理', '18000', '987.65', '2025-06-15', '石家庄'],
+                        ['尤二一', '25', '太原', '市场专员', '10000', '234.56', '2025-07-20', '太原'],
+                        ['许二二', '36', '福州', '财务经理', '26000', '3210.98', '2025-08-28', '福州']
+                    ];
+                    
+                    // 批量添加数据
+                    console.log('📝 开始添加示例数据...');
+                    for (var row = 0; row < sampleData.length; row++) {
+                        for (var col = 0; col < sampleData[row].length; col++) {
+                            try {
+                                app.tableCore.setCellValue(row, col, sampleData[row][col]);
+                                if (row === 0) { // 只记录第一行，避免太多日志
+                                    console.log('✅ 成功设置[' + row + ',' + col + ']:', sampleData[row][col]);
+                                }
+                            } catch (error) {
+                                console.error('❌ 设置单元格[' + row + ',' + col + ']失败:', error);
+                                console.error('   数据:', sampleData[row][col]);
+                                throw error; // 重新抛出错误以便上层处理
+                            }
+                        }
+                    }
+                    console.log('✅ 示例数据添加完成');
+                    
+                    // 🔧 更新数据库状态
+                    if (app.tableCore && app.tableCore.db) {
+                        app.tableCore.db.totalRows = 20;     // 存储层总行数
+                        app.tableCore.db.currentRows = 20;   // 向后兼容
+                        app.tableCore.db.visibleRows = 20;   // 视图层可见行数
+                        app.tableCore.state.isDirty = true;
+                        
+                        // 标记所有列为脏数据以便保存
+                        for (var col = 0; col < 8; col++) {
+                            app.tableCore.db.markColumnDirty(col);
+                        }
+                        app.tableCore.db.markMetadataDirty();
+                        
+                        // 🔧 安全检查：确保displayIndices存在并正确初始化
+                        if (app.tableCore.db.displayIndices) {
+                            for (var i = 0; i < 20; i++) {
+                                app.tableCore.db.displayIndices[i] = i;
+                            }
+                            console.log('✅ displayIndices已初始化:', Array.from(app.tableCore.db.displayIndices.slice(0, 5)));
+                        } else {
+                            console.error('❌ displayIndices未定义！');
+                        }
+                    } else {
+                        console.error('❌ app.tableCore或db未定义！');
+                    }
+                    
+                    app.tableCore.render();
+                    showStats();
+                    
+                    updateStatus('已加载20行示例数据', 'success');
+                    
+                } catch (error) {
+                    console.error('加载示例数据失败:', error);
+                    updateStatus('加载示例数据失败: ' + error.message, 'error');
+                }
+            }
+            
+            // 显示统计信息
+            function showStats() {
+                if (app.tableCore && app.tableCore.db) {
+                    try {
+                        var currentRows = app.tableCore.db.currentRows || 0;
+                        var maxRows = app.tableCore.db.maxRows || 100;
+                        var maxCols = app.tableCore.db.maxCols || 26;
+                        updateInfo('列式存储: ' + currentRows + '/' + maxRows + '行 ' + maxCols + '列');
+                    } catch (error) {
+                        updateInfo('列式内存数据库 + Canvas渲染');
+                    }
+                }
+            }
+            
+            // 🗺️ 重新编码所有日期数据
+            function reEncodeAllDates() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🗺️ 开始重新编码所有日期数据...');
+                    
+                    // 遵循原始数据的日期格式
+                    var dateData = [
+                        '2024-01-15', '2024-02-20', '2024-03-10', '2024-04-15', '2024-05-22',
+                        '2024-06-08', '2024-07-12', '2024-08-18', '2024-09-25', '2024-10-30',
+                        '2024-11-05', '2024-12-12', '2025-01-08', '2025-02-14', '2025-03-20',
+                        '2025-04-25', '2025-05-30', '2025-06-15', '2025-07-20', '2025-08-28'
+                    ];
+                    
+                    // 重新设置G列（第6列）的所有日期
+                    for (var row = 0; row < dateData.length && row < 20; row++) {
+                        console.log('📌 重新设置第' + row + '行的日期:', dateData[row]);
+                        app.tableCore.setCellValue(row, 6, dateData[row]); // G列是第6列
+                    }
+                    
+                    console.log('✅ 日期重新编码完成！');
+                    app.tableCore.render();
+                    
+                } catch (error) {
+                    console.error('重新编码日期失败:', error);
+                }
+            }
+            
+            // 🔧 验证数据完整性和显示问题
+            function validateDataIntegrity() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🔍 验证数据完整性...');
+                    var db = app.tableCore.db;
+                    
+                    // 检查存储层数据
+                    console.log('📊 存储层状态:');
+                    console.log('   totalRows:', db.totalRows);
+                    console.log('   visibleRows:', db.visibleRows);
+                    console.log('   displayIndices前5项:', Array.from(db.displayIndices.slice(0, 5)));
+                    
+                    // 检查每列的数据
+                    for (var col = 0; col < 8; col++) {
+                        console.log('🔍 列' + col + '数据检查:');
+                        
+                        // 存储层原始数据（前3行）
+                        var storageData = [];
+                        for (var row = 0; row < 3 && row < db.totalRows; row++) {
+                            var encoded = db.columns[col][row];
+                            var decoded = db.decode(encoded, col);
+                            storageData.push({ row: row, encoded: encoded, decoded: decoded });
+                        }
+                        console.log('   存储层数据:', storageData);
+                        
+                        // 视图层显示数据（前3行）
+                        var viewData = [];
+                        for (var viewRow = 0; viewRow < 3 && viewRow < db.visibleRows; viewRow++) {
+                            var actualRow = db.displayIndices[viewRow];
+                            var value = db.getDisplayValue(viewRow, col);
+                            viewData.push({ viewRow: viewRow, actualRow: actualRow, value: value });
+                        }
+                        console.log('   视图层数据:', viewData);
+                        console.log('');
+                    }
+                    
+                } catch (error) {
+                    console.error('数据完整性检查失败:', error);
+                }
+            }
+            
+            // 🔧 验证日期编码修复
+            function validateDateEncodingFix() {
+                if (!app.tableCore) return;
+                
+                try {
+                    console.log('🔧 验证日期编码修复...');
+                    
+                    // 获取G列的编码值并显示排序结果
+                    var db = app.tableCore.db;
+                    var encodedValues = [];
+                    
+                    // 收集所有编码值和原始日期
+                    for (var row = 0; row < 20; row++) {
+                        var encodedValue = db.columns[6][row]; // G列编码值
+                        var decodedValue = db.decode(encodedValue, 6); // 解码回日期
+                        encodedValues.push({
+                            row: row,
+                            encoded: encodedValue,
+                            decoded: decodedValue,
+                            hex: '0x' + encodedValue.toString(16)
+                        });
+                    }
+                    
+                    // 按编码值排序
+                    encodedValues.sort(function(a, b) { return a.encoded - b.encoded; });
+                    
+                    console.log('📊 修复后的日期编码排序结果:');
+                    console.log('   编码值从小到大的日期顺序:');
+                    for (var i = 0; i < encodedValues.length; i++) {
+                        var item = encodedValues[i];
+                        console.log('     第' + item.row + '行: ' + item.decoded + ' → 编码值: ' + item.hex + ' (' + item.encoded + ')');
+                    }
+                    
+                    // 检查2024年和2025年的排序是否正确
+                    var dates2024 = encodedValues.filter(function(item) { return item.decoded.startsWith('2024'); });
+                    var dates2025 = encodedValues.filter(function(item) { return item.decoded.startsWith('2025'); });
+                    
+                    if (dates2024.length > 0 && dates2025.length > 0) {
+                        var max2024 = Math.max.apply(null, dates2024.map(function(item) { return item.encoded; }));
+                        var min2025 = Math.min.apply(null, dates2025.map(function(item) { return item.encoded; }));
+                        
+                        console.log('🎯 年份排序验证:');
+                        console.log('   2024年最大编码值: ' + max2024 + ' (0x' + max2024.toString(16) + ')');
+                        console.log('   2025年最小编码值: ' + min2025 + ' (0x' + min2025.toString(16) + ')');
+                        console.log('   排序是否正确: ' + (max2024 < min2025 ? '✅ 是' : '❌ 否'));
+                    }
+                    
+                } catch (error) {
+                    console.error('验证日期编码失败:', error);
+                }
+            }
+            
+            // 启用自动保存
+            function enableAutoSave() {
+                if (!app.tableCore) return;
+                
+                try {
+                    if (app.tableCore.eventManager && window.EVENTS) {
+                        app.tableCore.eventManager.on(window.EVENTS.TABLE_DATA_CHANGED, function() {
+                            setTimeout(showStats, 100);
+                        });
+                    }
+                } catch (error) {
+                    console.error('启用自动保存失败:', error);
+                }
+            }
+            
+            // 窗口大小变化时重新初始化Canvas
+            window.addEventListener('resize', function() {
+                if (app.tableCore) {
+                    setTimeout(function() {
+                        try {
+                            initializeCanvas();
+                            app.tableCore.render();
+                        } catch (error) {
+                            console.error('重新渲染失败:', error);
+                        }
+                    }, 100);
+                }
+            });
+            
+            // 启动应用
+            function init() {
+                setTimeout(startApp, 100);
+            }
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+            
+            
+        })();
+    </script>
+</body>
+</html>
